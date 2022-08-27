@@ -8,18 +8,21 @@
   outputs = { self, nixpkgs, utils, naersk }:
     utils.lib.eachDefaultSystem (system:
       let
-        pkgs = import nixpkgs { inherit system; };
-        naersk-lib = pkgs.callPackage naersk { };
+        pkgs = nixpkgs.legacyPackages.${system};
+        transformer = naersk.lib.${system}.buildPackage ./transformer;
+        generateBom = pkgs.callPackage ./bombon.nix { inherit transformer; };
       in
       {
-        defaultPackage = naersk-lib.buildPackage ./.;
+        lib = { inherit generateBom; };
 
-        defaultApp = utils.lib.mkApp {
-          drv = self.defaultPackage."${system}";
+        packages = {
+          # This is mostly here for development
+          inherit transformer;
+          default = transformer;
         };
 
-        devShell = with pkgs; mkShell {
-          buildInputs = [ cargo rustc rustfmt pre-commit rustPackages.clippy ];
+        devShells.default = with pkgs; mkShell {
+          buildInputs = [ cargo rustc rustfmt rustPackages.clippy ];
           RUST_SRC_PATH = rustPlatform.rustLibSrc;
         };
       });
