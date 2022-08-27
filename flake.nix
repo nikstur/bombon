@@ -1,16 +1,28 @@
 {
   inputs = {
     naersk.url = "github:nix-community/naersk/master";
+    rust-overlay.url = "github:oxalica/rust-overlay";
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     utils.url = "github:numtide/flake-utils";
     pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
   };
 
-  outputs = { self, nixpkgs, utils, naersk, pre-commit-hooks }:
+  outputs = { self, nixpkgs, utils, naersk, rust-overlay, pre-commit-hooks }:
     utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
-        transformer = naersk.lib.${system}.buildPackage ./transformer;
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ (import rust-overlay) ];
+        };
+
+        rustVersion = "1.63.0";
+        rustToolChain = pkgs.rust-bin.stable.${rustVersion}.default;
+        naersk' = pkgs.callPackage naersk {
+          cargo = rustToolChain;
+          rustc = rustToolChain;
+        };
+
+        transformer = naersk'.buildPackage ./transformer;
         generateBom = pkgs.callPackage ./bombon.nix { inherit transformer; };
       in
       {
@@ -35,9 +47,9 @@
         };
 
         devShells.default = with pkgs; mkShell {
-          buildInputs = [ cargo rustc rustfmt rustPackages.clippy ];
+          inputsFrom = [ transformer ];
+
           inherit (self.checks.${system}.pre-commit) shellHook;
-          RUST_SRC_PATH = rustPlatform.rustLibSrc;
         };
       });
 }
