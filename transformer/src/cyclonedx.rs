@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::collections::HashSet;
 
 use anyhow::Result;
 use cyclonedx_bom::external_models::normalized_string::NormalizedString;
@@ -8,6 +8,7 @@ use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
 use itertools::Itertools;
 
 use crate::input::{Derivation, Meta};
+use crate::BuildtimeInput;
 
 pub struct Output(Bom);
 
@@ -17,25 +18,28 @@ impl Output {
         self.0.output_as_json_v1_3(&mut output)?;
         Ok(String::from_utf8(output)?)
     }
-}
 
-impl TryFrom<crate::Input> for Output {
-    type Error = anyhow::Error;
-
-    fn try_from(value: crate::Input) -> Result<Self, Self::Error> {
+    pub fn convert(buildtime_input: BuildtimeInput, runtime_input: Vec<&str>) -> Result<Self> {
+        let owned_runtime_input: Vec<String> =
+            runtime_input.into_iter().map(|x| x.to_owned()).collect();
+        let runtime_input_set = HashSet::from_iter(owned_runtime_input.into_iter());
         let output = Output(Bom {
-            components: Some(input_to_components(value)),
+            components: Some(input_to_components(buildtime_input, runtime_input_set)),
             ..Bom::default()
         });
         Ok(output)
     }
 }
 
-fn input_to_components(input: crate::Input) -> Components {
+fn input_to_components(
+    buildtime_input: BuildtimeInput,
+    runtime_input_set: HashSet<String>,
+) -> Components {
     Components(
-        input
+        buildtime_input
             .into_iter()
             .unique()
+            .filter(|derivation| runtime_input_set.contains(&derivation.path))
             .map(derivation_to_component)
             .collect(),
     )
@@ -43,7 +47,9 @@ fn input_to_components(input: crate::Input) -> Components {
 
 fn derivation_to_component(derivation: Derivation) -> Component {
     let mut component = Component::new(
-        Classification::Library,
+        // Classification::Application is used as per specification when the type is not known
+        // as is the case for dependencies from Nix
+        Classification::Application,
         match derivation.pname {
             Some(pname) => NormalizedString::new(&pname),
             None => NormalizedString::new(&derivation.name.unwrap_or_default()),
@@ -61,10 +67,18 @@ fn extract_license(meta: Option<Meta>) -> Option<Licenses> {
             Some(license) => license
                 .into_vec()
                 .into_iter()
-                .map(|license| LicenseChoice::License(License::named_license(&license)))
+                .map(license_to_license_choice)
                 .collect(),
             _ => return None,
         },
         _ => return None,
     }))
+}
+
+fn license_to_license_choice(license: crate::input::License) -> LicenseChoice {
+    match license.spdx_id {
+        // cyclonedx-bom currently does not allow to create License using an SPDX identifier
+        Some(spdx_id) => LicenseChoice::License(License::named_license(&spdx_id)),
+        None => LicenseChoice::License(License::named_license(&license.full_name)),
+    }
 }
