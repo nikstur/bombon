@@ -1,0 +1,20 @@
+{
+    "bombon": {
+        "branch": "main",
+        "repo": "git@github.com:nikstur/bombon.git",
+        "rev": "62448a72e16096cd722f13456e1cb2bdd7b0420a",
+        "type": "git"
+    },
+    "nixpkgs": {
+        "branch": "nixpkgs-unstable",
+        "description": "Nix Packages collection",
+        "homepage": "",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "d7c3a973c7f20cfeca999d03e3da7344e0bb55f1",
+        "sha256": "1yn8nmh53kvflly7q5iy2fdz3nmrn1gyjn9h7n6280kq27kr8vqg",
+        "type": "tarball",
+        "url": "https://github.com/NixOS/nixpkgs/archive/d7c3a973c7f20cfeca999d03e3da7344e0bb55f1.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    }
+}

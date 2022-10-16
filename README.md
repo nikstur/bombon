@@ -24,6 +24,26 @@ Easily generate Software Bill of Materials from Nix packages!
 }
 ```
 
+### Niv
+
+```sh
+niv init
+niv add nikstur/bombon
+```
+
+```nix
+# file: default.nix
+let
+  sources = import ./nix/sources.nix { };
+  pkgs = import sources.nixpkgs { };
+  bombon = import sources.bombon;
+  system = "x86_64-linux";
+in
+{
+  helloBom = bombon.lib.${system}.generateBom pkgs.hello; 
+}
+```
+
 ## Contributing
 
 During development, the Nix Repl is a convenient and quick way to test changes.
