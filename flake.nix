@@ -43,6 +43,9 @@
               # Rustfmt and clippy are not included here because these hooks
               # don't work when the rust project is in a subdirectory
             };
+            settings = {
+              statix.ignore = [ "sources.nix" ];
+            };
           };
         };
 
