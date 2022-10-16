@@ -1,6 +1,6 @@
 # Bombon
 
-Easily generate Software Bill of Materials from Nix packages!
+Easily build Software Bill of Materials from Nix packages!
 
 ## Getting Started
 
@@ -41,9 +41,7 @@ let
   bombon = import sources.bombon;
   system = "x86_64-linux";
 in
-{
-  helloBom = bombon.lib.${system}.generateBom pkgs.hello; 
-}
+bombon.lib.${system}.buildBom pkgs.hello
 ```
 
 ## Contributing
@@ -55,12 +53,12 @@ Start the repl, loading your local version of nixpkgs.
 nix repl <nixpkgs>
 ```
 
-Inside the repl, load the bombon flake and generate the BOM for a package you
+Inside the repl, load the bombon flake and build the BOM for a package you
 are interested in.
 
 ```nix-repl
 :l .
-:b lib.x86_64-linux.generateBom python3
+:b lib.x86_64-linux.buildBom python3
 ```
 
 Remember to re load the bombon flake every time you made changes to any of the
