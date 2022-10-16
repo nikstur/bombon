@@ -23,3 +23,23 @@ Easily generate Software Bill of Materials using Nix!
     };
 }
 ```
+
+## Contributing
+
+During development, the Nix Repl is a convenient and quick way to test changes.
+Start the repl, loading your local version of nixpkgs.
+
+```sh
+nix repl <nixpkgs>
+```
+
+Inside the repl, load the bombon flake and generate the BOM for a package you
+are interested in.
+
+```nix-repl
+:l .
+:b lib.x86_64-linux.generateBom python3
+```
+
+Remember to re load the bombon flake everytime you made changes to any of the
+source code.
