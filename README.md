@@ -43,3 +43,9 @@ are interested in.
 
 Remember to re load the bombon flake everytime you made changes to any of the
 source code.
+
+## Acknowledgements
+
+The way dependencies are retrieved using Nix is heavily influenced by this
+[blog article from Nicolas
+Mattia](https://www.nmattia.com/posts/2019-10-08-runtime-dependencies.html).
