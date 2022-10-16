@@ -49,16 +49,16 @@ let
       fields = drv:
         (optionalGetAttrs [ "name" "pname" "version" "meta" ] drv) // { path = drv.outPath; };
     in
-    writeText "${drv.name}-buildtime-dependencies" (builtins.toJSON
+    writeText "${drv.name}-buildtime-dependencies.json" (builtins.toJSON
       (map (obj: (fields obj.drv)) (buildtimeDerivations drv))
     );
 
   # This is a wrapper around nixpkgs' `closureInfo`. It produces a JSON file
   # containing a list of the store paths of `drv`'s runtime dependencies.
-  runtimeDependencies = drv: runCommand "${drv.name}-runtime-dependencies" { } ''
+  runtimeDependencies = drv: runCommand "${drv.name}-runtime-dependencies.json" { } ''
     cat ${closureInfo { rootPaths = [ drv ]; }}/store-paths > $out
   '';
 in
-drv: runCommand "${drv.name}-bill-of-materials" { buildInputs = [ transformer ]; } ''
+drv: runCommand "${drv.name}.cdx.json" { buildInputs = [ transformer ]; } ''
   bombon-transformer ${buildtimeDependencies drv} ${runtimeDependencies drv} > $out
 ''
