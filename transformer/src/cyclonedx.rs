@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 
 use anyhow::Result;
-use cyclonedx_bom::external_models::normalized_string::NormalizedString;
 use cyclonedx_bom::models::bom::Bom;
 use cyclonedx_bom::models::component::{Classification, Component, Components};
 use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
+use cyclonedx_bom::models::property::{Properties, Property};
+use cyclonedx_bom::prelude::NormalizedString;
 use itertools::Itertools;
 
 use crate::input::{Derivation, Meta};
@@ -50,21 +51,26 @@ fn derivation_to_component(derivation: Derivation) -> Component {
         // Classification::Application is used as per specification when the type is not known
         // as is the case for dependencies from Nix
         Classification::Application,
-        match derivation.pname {
-            Some(pname) => NormalizedString::new(&pname),
-            None => NormalizedString::new(&derivation.name.unwrap_or_default()),
+        &match derivation.pname {
+            Some(pname) => pname,
+            None => derivation.name.unwrap_or_default(),
         },
-        NormalizedString::new(&derivation.version.unwrap_or_default()),
+        &derivation.version.unwrap_or_default(),
         None,
     );
-    component.licenses = extract_license(derivation.meta);
+    component.licenses = extract_license(&derivation.meta);
+    component.properties = match extract_homepage(&derivation.meta) {
+        Some(properties) => Some(Properties(properties)),
+        None => None,
+    };
     component
 }
 
-fn extract_license(meta: Option<Meta>) -> Option<Licenses> {
+fn extract_license(meta: &Option<Meta>) -> Option<Licenses> {
     Some(Licenses(match meta {
-        Some(meta) => match meta.license {
+        Some(meta) => match &meta.license {
             Some(license) => license
+                .clone()
                 .into_vec()
                 .into_iter()
                 .map(license_to_license_choice)
@@ -80,5 +86,18 @@ fn license_to_license_choice(license: crate::input::License) -> LicenseChoice {
         // cyclonedx-bom currently does not allow to create License using an SPDX identifier
         Some(spdx_id) => LicenseChoice::License(License::named_license(&spdx_id)),
         None => LicenseChoice::License(License::named_license(&license.full_name)),
+    }
+}
+
+fn extract_homepage(meta: &Option<Meta>) -> Option<Vec<Property>> {
+    match meta {
+        Some(meta) => match &meta.homepage {
+            Some(homepage) => Some(vec![Property {
+                name: String::from("homepage"),
+                value: NormalizedString::new(&homepage),
+            }]),
+            _ => return None,
+        },
+        _ => None,
     }
 }
