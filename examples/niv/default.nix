@@ -4,6 +4,4 @@ let
   bombon = import sources.bombon;
   system = "x86_64-linux";
 in
-{
-  helloBom = bombon.lib.${system}.generateBom pkgs.hello;
-}
+bombon.lib.${system}.buildBom pkgs.hello

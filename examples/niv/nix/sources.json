@@ -2,7 +2,7 @@
     "bombon": {
         "branch": "main",
         "repo": "git@github.com:nikstur/bombon.git",
-        "rev": "62448a72e16096cd722f13456e1cb2bdd7b0420a",
+        "rev": "ea7d87e82be7411c6c2e785b458c72d1c9983422",
         "type": "git"
     },
     "nixpkgs": {
