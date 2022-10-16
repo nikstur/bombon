@@ -41,7 +41,7 @@ are interested in.
 :b lib.x86_64-linux.generateBom python3
 ```
 
-Remember to re load the bombon flake everytime you made changes to any of the
+Remember to re load the bombon flake every time you made changes to any of the
 source code.
 
 ## Acknowledgements
