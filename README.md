@@ -1,6 +1,6 @@
 # Bombon
 
-Easily build Software Bill of Materials from Nix packages!
+Easily build Software Bills of Materials (SBOMs) from Nix packages!
 
 ## Getting Started
 
