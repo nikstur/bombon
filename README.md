@@ -1,7 +1,6 @@
 # Bombon
 
-Easily generate *comprehensive* Bill of Materials of your Software leveraging
-the power of Nix!
+Easily generate Software Bill of Materials using Nix!
 
 ## Getting Started
 
@@ -10,19 +9,17 @@ the power of Nix!
 ```nix
 {
   inputs = {
-    bombon.url = "github:nikstur/bombon";
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    bombon.url = "github:nikstur/bombon";
   };
 
   outputs = { self, nixpkgs, bombon }:
     let
       system = "x86_64-linux";
-      hello = nixpkgs.legacyPackages.${system}.hello;
+      pkgs = import nixpkgs { inherit system; };
     in
     {
-      packages.${system} = {
-        hello-bom = bombon.lib.${system}.generateBom hello; 
-      };
+      packages.${system}.helloBom = bombon.lib.${system}.generateBom pkgs.hello; 
     };
 }
 ```
