@@ -23,10 +23,14 @@
         };
 
         transformer = naersk'.buildPackage ./transformer;
-        generateBom = pkgs.callPackage ./bombon.nix { inherit transformer; };
+        buildBom = pkgs.callPackage ./build-bom.nix {
+          inherit transformer;
+          buildtimeDependencies = pkgs.callPackage ./buildtime-dependencies.nix { };
+          runtimeDependencies = pkgs.callPackage ./runtime-dependencies.nix { };
+        };
       in
       {
-        lib = { inherit generateBom; };
+        lib = { inherit buildBom; };
 
         packages = {
           # This is mostly here for development
