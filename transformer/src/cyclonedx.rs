@@ -3,9 +3,10 @@ use std::collections::HashSet;
 use anyhow::Result;
 use cyclonedx_bom::models::bom::Bom;
 use cyclonedx_bom::models::component::{Classification, Component, Components};
+use cyclonedx_bom::models::external_reference::{
+    ExternalReference, ExternalReferenceType, ExternalReferences,
+};
 use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
-use cyclonedx_bom::models::property::{Properties, Property};
-use cyclonedx_bom::prelude::NormalizedString;
 use itertools::Itertools;
 
 use crate::input::{Derivation, Meta};
@@ -58,46 +59,49 @@ fn derivation_to_component(derivation: Derivation) -> Component {
         &derivation.version.unwrap_or_default(),
         None,
     );
-    component.licenses = extract_license(&derivation.meta);
-    component.properties = match extract_homepage(&derivation.meta) {
-        Some(properties) => Some(Properties(properties)),
-        None => None,
-    };
+    if let Some(meta) = derivation.meta {
+        component.licenses = convert_licenses(&meta);
+        component.external_references = match convert_homepage(&meta) {
+            Some(external_references) => Some(ExternalReferences(external_references)),
+            None => None,
+        };
+    }
     component
 }
 
-fn extract_license(meta: &Option<Meta>) -> Option<Licenses> {
-    Some(Licenses(match meta {
-        Some(meta) => match &meta.license {
-            Some(license) => license
-                .clone()
-                .into_vec()
-                .into_iter()
-                .map(license_to_license_choice)
-                .collect(),
-            _ => return None,
-        },
+fn convert_licenses(meta: &Meta) -> Option<Licenses> {
+    Some(Licenses(match &meta.license {
+        Some(license) => license
+            .clone()
+            .into_vec()
+            .into_iter()
+            .map(convert_license)
+            .collect(),
         _ => return None,
     }))
 }
 
-fn license_to_license_choice(license: crate::input::License) -> LicenseChoice {
+fn convert_license(license: crate::input::License) -> LicenseChoice {
     match license.spdx_id {
-        // cyclonedx-bom currently does not allow to create License using an SPDX identifier
-        Some(spdx_id) => LicenseChoice::License(License::named_license(&spdx_id)),
+        Some(spdx_id) => match License::license_id(&spdx_id) {
+            Ok(license) => LicenseChoice::License(license),
+            Err(_) => LicenseChoice::License(License::named_license(&license.full_name)),
+        },
         None => LicenseChoice::License(License::named_license(&license.full_name)),
     }
 }
 
-fn extract_homepage(meta: &Option<Meta>) -> Option<Vec<Property>> {
-    match meta {
-        Some(meta) => match &meta.homepage {
-            Some(homepage) => Some(vec![Property {
-                name: String::from("homepage"),
-                value: NormalizedString::new(&homepage),
-            }]),
-            _ => return None,
-        },
-        _ => None,
+fn convert_homepage(meta: &Meta) -> Option<Vec<ExternalReference>> {
+    match &meta.homepage {
+        Some(homepage) => Some(vec![ExternalReference {
+            external_reference_type: ExternalReferenceType::Website,
+            url: match homepage.to_owned().try_into() {
+                Ok(uri) => uri,
+                _ => return None,
+            },
+            comment: None,
+            hashes: None,
+        }]),
+        _ => return None,
     }
 }
