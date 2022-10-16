@@ -1,15 +1,15 @@
 #![forbid(unsafe_code)]
 
+mod buildtime_input;
 mod cyclonedx;
-mod input;
 
 use std::env;
 use std::fs;
 
 use anyhow::Result;
 
-use cyclonedx::Output;
-use input::BuildtimeInput;
+use buildtime_input::BuildtimeInput;
+use cyclonedx::CycloneDXBom;
 
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -22,7 +22,7 @@ fn main() -> Result<()> {
     let runtime_input_string = fs::read_to_string(runtime_input_path)?;
     let runtime_input: Vec<&str> = runtime_input_string.lines().collect();
 
-    let output = Output::convert(buildtime_input, runtime_input)?;
+    let output = CycloneDXBom::build(buildtime_input, runtime_input)?;
     println!("{}", output.serialize()?);
 
     Ok(())

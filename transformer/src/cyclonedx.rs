@@ -9,23 +9,22 @@ use cyclonedx_bom::models::external_reference::{
 use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
 use itertools::Itertools;
 
-use crate::input::{Derivation, Meta};
-use crate::BuildtimeInput;
+use crate::buildtime_input::{BuildtimeInput, Derivation, Meta};
 
-pub struct Output(Bom);
+pub struct CycloneDXBom(Bom);
 
-impl Output {
+impl CycloneDXBom {
     pub fn serialize(self) -> Result<String> {
         let mut output = Vec::<u8>::new();
         self.0.output_as_json_v1_3(&mut output)?;
         Ok(String::from_utf8(output)?)
     }
 
-    pub fn convert(buildtime_input: BuildtimeInput, runtime_input: Vec<&str>) -> Result<Self> {
+    pub fn build(buildtime_input: BuildtimeInput, runtime_input: Vec<&str>) -> Result<Self> {
         let owned_runtime_input: Vec<String> =
             runtime_input.into_iter().map(|x| x.to_owned()).collect();
         let runtime_input_set = HashSet::from_iter(owned_runtime_input.into_iter());
-        let output = Output(Bom {
+        let output = Self(Bom {
             components: Some(input_to_components(buildtime_input, runtime_input_set)),
             ..Bom::default()
         });
@@ -81,7 +80,7 @@ fn convert_licenses(meta: &Meta) -> Option<Licenses> {
     }))
 }
 
-fn convert_license(license: crate::input::License) -> LicenseChoice {
+fn convert_license(license: crate::buildtime_input::License) -> LicenseChoice {
     match license.spdx_id {
         Some(spdx_id) => match License::license_id(&spdx_id) {
             Ok(license) => LicenseChoice::License(license),
