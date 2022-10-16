@@ -1,6 +1,6 @@
 # Bombon
 
-Easily generate Software Bill of Materials using Nix!
+Easily generate Software Bill of Materials from Nix packages!
 
 ## Getting Started
 
