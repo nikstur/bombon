@@ -13,7 +13,7 @@ use itertools::Itertools;
 
 use crate::buildtime_input::{BuildtimeInput, Derivation, Meta};
 
-const VERSION: &str = env!("CARGO_PKG_VERSION_MAJOR");
+const VERSION: &str = env!("GIT_COMMIT");
 
 pub struct CycloneDXBom(Bom);
 

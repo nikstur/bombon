@@ -22,9 +22,11 @@
           rustc = rustToolChain;
         };
 
+        GIT_COMMIT = pkgs.lib.optionalString (self ? rev) self.rev;
+
         transformer = naersk'.buildPackage {
           src = ./transformer;
-          CARGO_PKG_VERSION = nixpkgs.lib.optionalString (self ? rev) self.rev;
+          inherit GIT_COMMIT;
         };
         buildBom = pkgs.callPackage ./build-bom.nix {
           inherit transformer;
@@ -58,6 +60,8 @@
 
         devShells.default = with pkgs; mkShell {
           inputsFrom = [ transformer ];
+
+          inherit GIT_COMMIT;
 
           inherit (self.checks.${system}.pre-commit) shellHook;
         };
