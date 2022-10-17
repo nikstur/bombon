@@ -22,7 +22,10 @@
           rustc = rustToolChain;
         };
 
-        transformer = naersk'.buildPackage ./transformer;
+        transformer = naersk'.buildPackage {
+          src = ./transformer;
+          CARGO_PKG_VERSION = nixpkgs.lib.optionalString (self ? rev) self.rev;
+        };
         buildBom = pkgs.callPackage ./build-bom.nix {
           inherit transformer;
           buildtimeDependencies = pkgs.callPackage ./buildtime-dependencies.nix { };

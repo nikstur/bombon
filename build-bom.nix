@@ -6,5 +6,5 @@
 
 drv:
 runCommand "${drv.name}.cdx.json" { buildInputs = [ transformer ]; } ''
-  bombon-transformer ${buildtimeDependencies drv} ${runtimeDependencies drv} > $out
+  bombon-transformer ${drv} ${buildtimeDependencies drv} ${runtimeDependencies drv} > $out
 ''

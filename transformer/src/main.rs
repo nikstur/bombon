@@ -14,15 +14,17 @@ use cyclonedx::CycloneDXBom;
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
 
-    let buildtime_input_path = &args[1];
-    let runtime_input_path = &args[2];
+    let target_path = &args[1];
+    let buildtime_input_path = &args[2];
+    let runtime_input_path = &args[3];
 
-    let buildtime_input: BuildtimeInput =
+    let mut buildtime_input: BuildtimeInput =
         serde_json::from_reader(fs::File::open(buildtime_input_path)?)?;
+    let target_derivation = buildtime_input.remove_derivation(target_path);
     let runtime_input_string = fs::read_to_string(runtime_input_path)?;
     let runtime_input: Vec<&str> = runtime_input_string.lines().collect();
 
-    let output = CycloneDXBom::build(buildtime_input, runtime_input)?;
+    let output = CycloneDXBom::build(target_derivation, buildtime_input, runtime_input)?;
     println!("{}", output.serialize()?);
 
     Ok(())

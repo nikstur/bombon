@@ -7,9 +7,13 @@ use cyclonedx_bom::models::external_reference::{
     ExternalReference, ExternalReferenceType, ExternalReferences,
 };
 use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
+use cyclonedx_bom::models::metadata::Metadata;
+use cyclonedx_bom::models::tool::{Tool, Tools};
 use itertools::Itertools;
 
 use crate::buildtime_input::{BuildtimeInput, Derivation, Meta};
+
+const VERSION: &str = env!("CARGO_PKG_VERSION_MAJOR");
 
 pub struct CycloneDXBom(Bom);
 
@@ -20,12 +24,19 @@ impl CycloneDXBom {
         Ok(String::from_utf8(output)?)
     }
 
-    pub fn build(buildtime_input: BuildtimeInput, runtime_input: Vec<&str>) -> Result<Self> {
+    pub fn build(
+        target: Derivation,
+        buildtime_input: BuildtimeInput,
+        runtime_input: Vec<&str>,
+    ) -> Result<Self> {
         let owned_runtime_input: Vec<String> =
             runtime_input.into_iter().map(|x| x.to_owned()).collect();
+
         let runtime_input_set = HashSet::from_iter(owned_runtime_input.into_iter());
+
         let output = Self(Bom {
             components: Some(input_to_components(buildtime_input, runtime_input_set)),
+            metadata: Some(metadata_from_target(target)),
             ..Bom::default()
         });
         Ok(output)
@@ -102,5 +113,18 @@ fn convert_homepage(meta: &Meta) -> Option<Vec<ExternalReference>> {
             hashes: None,
         }]),
         _ => return None,
+    }
+}
+
+fn metadata_from_target(target: Derivation) -> Metadata {
+    Metadata {
+        timestamp: None,
+        tools: Some(Tools(vec![Tool::new("nikstur", "bombon", VERSION)])),
+        authors: None,
+        component: Some(derivation_to_component(target)),
+        manufacture: None,
+        supplier: None,
+        licenses: None,
+        properties: None,
     }
 }

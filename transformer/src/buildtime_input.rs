@@ -10,6 +10,15 @@ impl BuildtimeInput {
     pub fn into_iter(self) -> IntoIter<Derivation> {
         self.0.into_iter()
     }
+
+    pub fn remove_derivation(&mut self, derivation_path: &str) -> Derivation {
+        let index = self
+            .0
+            .iter()
+            .position(|derivation| derivation.path == derivation_path)
+            .expect("Unrecovereable error: buildtime input does not include target");
+        self.0.swap_remove(index)
+    }
 }
 
 #[derive(Deserialize, Clone, Debug)]
