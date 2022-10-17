@@ -1,10 +1,3 @@
-# Returns a list of all of `drv`'s buildtime dependencies.
-# Elements in the list have two fields:
-#
-#  - key: the store path of the input.
-#  - drv: the actual derivation object.
-#
-# All outputs are included because they have different outPaths
 { lib
 , writeText
 }:
@@ -28,6 +21,14 @@ let
 
   # Walk through the whole DAG of dependencies, using the `outPath` as an
   # index for the elements.
+  #
+  # Returns a list of all of `drv`'s buildtime dependencies.
+  # Elements in the list have two fields:
+  #
+  #  - key: the store path of the input.
+  #  - drv: the actual derivation object.
+  #
+  # All outputs are included because they have different outPaths
   buildtimeDerivations = drv0: builtins.genericClosure {
     startSet = map wrap (drvOutputs drv0);
     operator = obj: map wrap (lib.concatLists (drvDeps obj.drv.drvAttrs));
