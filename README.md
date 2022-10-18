@@ -1,6 +1,6 @@
 # Bombon
 
-Automagically build Software Bills of Materials (SBOMs) for Nix packages !
+Automagically build CycloneDX Software Bills of Materials (SBOMs) for Nix packages!
 
 ## Getting Started
 
