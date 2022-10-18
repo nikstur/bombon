@@ -56,7 +56,6 @@
               statix.ignore = [ "sources.nix" ];
             };
           };
-
         } // import ./tests { inherit pkgs buildBom; };
 
         devShells.default = with pkgs; mkShell {
