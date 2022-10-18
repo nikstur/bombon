@@ -5,6 +5,7 @@ mod cyclonedx;
 
 use std::env;
 use std::fs;
+use std::io::{self, Write};
 
 use anyhow::Result;
 
@@ -24,8 +25,8 @@ fn main() -> Result<()> {
     let runtime_input_string = fs::read_to_string(runtime_input_path)?;
     let runtime_input: Vec<&str> = runtime_input_string.lines().collect();
 
-    let output = CycloneDXBom::build(target_derivation, buildtime_input, runtime_input)?;
-    println!("{}", output.serialize()?);
+    let bom = CycloneDXBom::build(target_derivation, buildtime_input, runtime_input)?;
+    io::stdout().write(&bom.serialize()?)?;
 
     Ok(())
 }

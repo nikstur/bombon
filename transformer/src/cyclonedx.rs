@@ -18,10 +18,10 @@ const VERSION: &str = env!("GIT_COMMIT");
 pub struct CycloneDXBom(Bom);
 
 impl CycloneDXBom {
-    pub fn serialize(self) -> Result<String> {
+    pub fn serialize(self) -> Result<Vec<u8>> {
         let mut output = Vec::<u8>::new();
         self.0.output_as_json_v1_3(&mut output)?;
-        Ok(String::from_utf8(output)?)
+        Ok(output)
     }
 
     pub fn build(
