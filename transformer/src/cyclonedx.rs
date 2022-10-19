@@ -37,7 +37,7 @@ impl CycloneDXBom {
 
         let output = Self(Bom {
             components: Some(input_to_components(buildtime_input, runtime_input_set)),
-            metadata: Some(metadata_from_target(target)),
+            metadata: Some(metadata_from_derivation(target)),
             ..Bom::default()
         });
         Ok(output)
@@ -120,12 +120,12 @@ fn convert_homepage(meta: &Meta) -> Option<Vec<ExternalReference>> {
     }
 }
 
-fn metadata_from_target(target: Derivation) -> Metadata {
+fn metadata_from_derivation(derivation: Derivation) -> Metadata {
     Metadata {
         timestamp: None,
         tools: Some(Tools(vec![Tool::new("nikstur", "bombon", VERSION)])),
         authors: None,
-        component: Some(derivation_to_component(target)),
+        component: Some(derivation_to_component(derivation)),
         manufacture: None,
         supplier: None,
         licenses: None,
