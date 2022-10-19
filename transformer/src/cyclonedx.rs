@@ -70,7 +70,7 @@ fn derivation_to_component(derivation: Derivation) -> Component {
         Classification::Application,
         &name,
         &version,
-        None,
+        Some(UrnUuid::generate().to_string()),
     );
     component.purl = Purl::new("nix", &name, &version).ok();
     if let Some(meta) = derivation.meta {
