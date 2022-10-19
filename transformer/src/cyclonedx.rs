@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 
 use anyhow::Result;
-use cyclonedx_bom::models::bom::Bom;
+use cyclonedx_bom::external_models::uri::Purl;
+use cyclonedx_bom::models::bom::{Bom, UrnUuid};
 use cyclonedx_bom::models::component::{Classification, Component, Components};
 use cyclonedx_bom::models::external_reference::{
     ExternalReference, ExternalReferenceType, ExternalReferences,
@@ -58,17 +59,20 @@ fn input_to_components(
 }
 
 fn derivation_to_component(derivation: Derivation) -> Component {
+    let name = match derivation.pname {
+        Some(pname) => pname,
+        None => derivation.name.unwrap_or_default(),
+    };
+    let version = derivation.version.unwrap_or_default();
     let mut component = Component::new(
         // Classification::Application is used as per specification when the type is not known
         // as is the case for dependencies from Nix
         Classification::Application,
-        &match derivation.pname {
-            Some(pname) => pname,
-            None => derivation.name.unwrap_or_default(),
-        },
-        &derivation.version.unwrap_or_default(),
+        &name,
+        &version,
         None,
     );
+    component.purl = Purl::new("nix", &name, &version).ok();
     if let Some(meta) = derivation.meta {
         component.licenses = convert_licenses(&meta);
         component.external_references = match convert_homepage(&meta) {
