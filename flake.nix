@@ -15,7 +15,7 @@
           overlays = [ (import rust-overlay) ];
         };
 
-        rustVersion = "1.63.0";
+        rustVersion = "1.64.0";
         rustToolChain = pkgs.rust-bin.stable.${rustVersion}.default;
         naersk' = pkgs.callPackage naersk {
           cargo = rustToolChain;
