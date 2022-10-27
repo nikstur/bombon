@@ -22,6 +22,7 @@
           rustc = rustToolChain;
         };
 
+        # Include the Git commit hash as the version of bombon in generated Boms
         GIT_COMMIT = pkgs.lib.optionalString (self ? rev) self.rev;
 
         transformer = naersk'.buildPackage {
