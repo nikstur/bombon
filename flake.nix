@@ -8,7 +8,10 @@
   };
 
   outputs = { self, nixpkgs, utils, naersk, rust-overlay, pre-commit-hooks }:
-    utils.lib.eachDefaultSystem (system:
+    let
+      systems = nixpkgs.lib.remove "i686-linux" utils.lib.defaultSystems;
+    in
+    utils.lib.eachSystem systems (system:
       let
         pkgs = import nixpkgs {
           inherit system;
