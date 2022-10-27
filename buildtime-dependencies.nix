@@ -1,5 +1,7 @@
 { lib
 , writeText
+, runCommand
+, jq
 }:
 
 let
@@ -44,6 +46,14 @@ let
     (optionalGetAttrs [ "name" "pname" "version" "meta" ] drv) // { path = drv.outPath; };
 in
 drv:
-writeText "${drv.name}-buildtime-dependencies.json" (builtins.toJSON
-  (map (obj: (fields obj.drv)) (buildtimeDerivations drv))
-)
+let
+  unformattedJson = writeText
+    "${drv.name}-unformatted-buildtime-dependencies.json"
+    (builtins.toJSON
+      (map (obj: (fields obj.drv)) (buildtimeDerivations drv))
+    );
+in
+# Format the json so that the transformer can better report where erros occur
+runCommand "${drv.name}-buildtime-dependencies.json" { } ''
+  ${jq}/bin/jq < ${unformattedJson} > "$out"
+''
