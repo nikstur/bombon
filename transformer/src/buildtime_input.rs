@@ -55,6 +55,9 @@ pub struct Meta {
 pub enum LicenseField {
     LicenseList(LicenseList),
     License(License),
+    // In very rare cases the license is just a String.
+    // This mostly serves as a fallback so that serde doesn't panic.
+    String(String),
 }
 
 impl LicenseField {
@@ -62,6 +65,8 @@ impl LicenseField {
         match self {
             Self::LicenseList(license_list) => license_list.0,
             Self::License(license) => vec![license],
+            // Fallback to handle very unusual license fields in Nix.
+            _ => vec![],
         }
     }
 }
