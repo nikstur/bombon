@@ -30,7 +30,7 @@ pub struct Derivation {
     pub meta: Option<Meta>,
 }
 
-// Implement Eq and Hash so Itertools::unique can identify unique depdencies by name
+// Implement Eq and Hash so Itertools::unique can identify unique depdencies by path
 impl PartialEq for Derivation {
     fn eq(&self, other: &Self) -> bool {
         self.path == other.path
