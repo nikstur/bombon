@@ -47,6 +47,9 @@
           default = transformer;
         };
 
+        defaultTemplate.path = builtins.filterSource (path: type: baseNameOf path == "flake.nix") 
+          ./examples/flakes;
+
         checks = {
           pre-commit = pre-commit-hooks.lib.${system}.run {
             src = ./.;
