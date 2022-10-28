@@ -6,6 +6,12 @@ Automagically build CycloneDX Software Bills of Materials (SBOMs) for Nix packag
 
 ### Flakes
 
+```sh
+nix flake init -t github:nikstur/bombon
+```
+
+Or manually copy this to `flake.nix` in your repository:
+
 ```nix
 # file: flake.nix
 {
