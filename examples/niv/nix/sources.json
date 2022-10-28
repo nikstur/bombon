@@ -2,7 +2,7 @@
     "bombon": {
         "branch": "main",
         "repo": "git@github.com:nikstur/bombon.git",
-        "rev": "ea7d87e82be7411c6c2e785b458c72d1c9983422",
+        "rev": "8ca9c3cb1dd6144c2cac0a95552b305a7375c55c",
         "type": "git"
     },
     "nixpkgs": {
@@ -11,10 +11,10 @@
         "homepage": "",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "d7c3a973c7f20cfeca999d03e3da7344e0bb55f1",
-        "sha256": "1yn8nmh53kvflly7q5iy2fdz3nmrn1gyjn9h7n6280kq27kr8vqg",
+        "rev": "f44ba1be526c8da9e79a5759feca2365204003f6",
+        "sha256": "0npbwsdjw88py5w2pjflwh94wgi4jmnmls0k1n7q8m6h94w1y1ps",
         "type": "tarball",
-        "url": "https://github.com/NixOS/nixpkgs/archive/d7c3a973c7f20cfeca999d03e3da7344e0bb55f1.tar.gz",
+        "url": "https://github.com/NixOS/nixpkgs/archive/f44ba1be526c8da9e79a5759feca2365204003f6.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
