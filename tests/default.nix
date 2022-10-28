@@ -3,11 +3,11 @@
 }:
 
 let
+  # This list cannot grow indefinitely because otherwise the CI will run forever
   testDerivations = with pkgs; [
     hello
     python3
     python3Packages.poetry # weird string license in buildtimeDependencies
-    vim
     git
   ];
 
