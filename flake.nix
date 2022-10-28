@@ -11,7 +11,13 @@
     let
       systems = nixpkgs.lib.remove "i686-linux" utils.lib.defaultSystems;
     in
-    utils.lib.eachSystem systems (system:
+    {
+      templates.default = {
+        path = builtins.filterSource (path: type: baseNameOf path == "flake.nix")
+          ./examples/flakes;
+        description = "Build a Bom for GNU hello";
+      };
+    } // utils.lib.eachSystem systems (system:
       let
         pkgs = import nixpkgs {
           inherit system;
@@ -46,9 +52,6 @@
           inherit transformer;
           default = transformer;
         };
-
-        defaultTemplate.path = builtins.filterSource (path: type: baseNameOf path == "flake.nix") 
-          ./examples/flakes;
 
         checks = {
           pre-commit = pre-commit-hooks.lib.${system}.run {
