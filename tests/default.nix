@@ -7,6 +7,8 @@ let
     hello
     python3
     python3Packages.poetry # weird string license in buildtimeDependencies
+    vim
+    git
   ];
 
   cycloneDxSpec = pkgs.fetchFromGitHub {
@@ -27,10 +29,11 @@ let
     pkgs.runCommand "${drv.name}-bom-validation" { nativeBuildInputs = [ pkgs.check-jsonschema ]; } ''
       check-jsonschema \
         --schemafile "${relativeReferencesSchema}" \
-        "${buildBom drv}" > $out
+        "${buildBom drv}"
+      touch $out
     '';
 
   genAttrsFromDrvs = drvs: f:
-    builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.pname (f d)) drvs);
+    builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.name (f d)) drvs);
 in
 genAttrsFromDrvs testDerivations buildBomAndValidate
