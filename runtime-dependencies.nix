@@ -1,5 +1,5 @@
-# This is a wrapper around nixpkgs' `closureInfo`. It a newline separated
-# list of the store paths of `drv`'s runtime dependencies.
+# This is a wrapper around nixpkgs' closureInfo. It returns a newline 
+# separated list of the store paths of drv's runtime dependencies.
 { runCommand
 , closureInfo
 }:
