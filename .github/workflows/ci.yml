@@ -9,5 +9,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: cachix/install-nix-action@v18
+      - uses: cachix/cachix-action@v12
+        with:
+          name: bombon
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       - run: nix build
       - run: nix flake check
