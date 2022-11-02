@@ -32,10 +32,13 @@
         # Include the Git commit hash as the version of bombon in generated Boms
         GIT_COMMIT = pkgs.lib.optionalString (self ? rev) self.rev;
 
-        transformer = craneLib.buildPackage {
-          src = ./transformer;
+        commonArgs = {
+          src = craneLib.cleanCargoSource ./transformer;
           inherit GIT_COMMIT;
         };
+        cargoArtifacts = craneLib.buildDepsOnly (commonArgs // { pname = "transformer-deps"; });
+        transformer = craneLib.buildPackage (commonArgs // { inherit cargoArtifacts; });
+
         buildBom = pkgs.callPackage ./build-bom.nix {
           inherit transformer;
           buildtimeDependencies = pkgs.callPackage ./buildtime-dependencies.nix { };
@@ -52,13 +55,13 @@
         };
 
         checks = {
+          clippy = craneLib.cargoClippy (commonArgs // { inherit cargoArtifacts; });
+          rustfmt = craneLib.cargoFmt (commonArgs // { inherit cargoArtifacts; });
           pre-commit = pre-commit-hooks.lib.${system}.run {
             src = ./.;
             hooks = {
               nixpkgs-fmt.enable = true;
               statix.enable = true;
-              # Rustfmt and clippy are not included here because these hooks
-              # don't work when the rust project is in a subdirectory
             };
             settings = {
               statix.ignore = [ "sources.nix" ];
