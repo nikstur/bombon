@@ -26,7 +26,7 @@ fn main() -> Result<()> {
     let runtime_input: Vec<&str> = runtime_input_string.lines().collect();
 
     let bom = CycloneDXBom::build(target_derivation, buildtime_input, runtime_input)?;
-    io::stdout().write(&bom.serialize()?)?;
+    io::stdout().write_all(&bom.serialize()?)?;
 
     Ok(())
 }

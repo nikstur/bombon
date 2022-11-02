@@ -30,10 +30,9 @@ impl CycloneDXBom {
         buildtime_input: BuildtimeInput,
         runtime_input: Vec<&str>,
     ) -> Result<Self> {
-        let owned_runtime_input: Vec<String> =
-            runtime_input.into_iter().map(|x| x.to_owned()).collect();
+        let owned_runtime_input = runtime_input.into_iter().map(|x| x.to_owned());
 
-        let runtime_input_set = HashSet::from_iter(owned_runtime_input.into_iter());
+        let runtime_input_set = HashSet::from_iter(owned_runtime_input);
 
         let output = Self(Bom {
             components: Some(input_to_components(buildtime_input, runtime_input_set)),
@@ -75,10 +74,7 @@ fn derivation_to_component(derivation: Derivation) -> Component {
     component.purl = Purl::new("nix", &name, &version).ok();
     if let Some(meta) = derivation.meta {
         component.licenses = convert_licenses(&meta);
-        component.external_references = match convert_homepage(&meta) {
-            Some(external_references) => Some(ExternalReferences(external_references)),
-            None => None,
-        };
+        component.external_references = convert_homepage(&meta).map(ExternalReferences);
     }
     component
 }
@@ -116,7 +112,7 @@ fn convert_homepage(meta: &Meta) -> Option<Vec<ExternalReference>> {
             comment: None,
             hashes: None,
         }]),
-        _ => return None,
+        _ => None,
     }
 }
 
