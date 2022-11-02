@@ -1,14 +1,14 @@
 {
   inputs = {
-    crane.url = "github:ipetkov/crane";
-    crane.inputs.nixpkgs.follows = "nixpkgs";
-    rust-overlay.url = "github:oxalica/rust-overlay";
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     utils.url = "github:numtide/flake-utils";
+    rust-overlay.url = "github:oxalica/rust-overlay";
+    crane.url = "github:ipetkov/crane";
+    crane.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
   };
 
-  outputs = { self, nixpkgs, utils, crane, rust-overlay, pre-commit-hooks }:
+  outputs = { self, nixpkgs, utils, rust-overlay, crane, pre-commit-hooks }:
     let
       systems = nixpkgs.lib.remove "i686-linux" utils.lib.defaultSystems;
     in
