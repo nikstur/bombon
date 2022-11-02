@@ -36,7 +36,7 @@
           src = craneLib.cleanCargoSource ./transformer;
           inherit GIT_COMMIT;
         };
-        cargoArtifacts = craneLib.buildDepsOnly (commonArgs // { pname = "transformer-deps"; });
+        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
         transformer = craneLib.buildPackage (commonArgs // { inherit cargoArtifacts; });
 
         buildBom = pkgs.callPackage ./build-bom.nix {
