@@ -1,13 +1,14 @@
 {
   inputs = {
-    naersk.url = "github:nix-community/naersk/master";
+    crane.url = "github:ipetkov/crane";
+    crane.inputs.nixpkgs.follows = "nixpkgs";
     rust-overlay.url = "github:oxalica/rust-overlay";
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     utils.url = "github:numtide/flake-utils";
     pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
   };
 
-  outputs = { self, nixpkgs, utils, naersk, rust-overlay, pre-commit-hooks }:
+  outputs = { self, nixpkgs, utils, crane, rust-overlay, pre-commit-hooks }:
     let
       systems = nixpkgs.lib.remove "i686-linux" utils.lib.defaultSystems;
     in
@@ -26,15 +27,12 @@
 
         rustVersion = "1.64.0";
         rustToolChain = pkgs.rust-bin.stable.${rustVersion}.default;
-        naersk' = pkgs.callPackage naersk {
-          cargo = rustToolChain;
-          rustc = rustToolChain;
-        };
+        craneLib = (crane.mkLib pkgs).overrideToolchain rustToolChain;
 
         # Include the Git commit hash as the version of bombon in generated Boms
         GIT_COMMIT = pkgs.lib.optionalString (self ? rev) self.rev;
 
-        transformer = naersk'.buildPackage {
+        transformer = craneLib.buildPackage {
           src = ./transformer;
           inherit GIT_COMMIT;
         };
