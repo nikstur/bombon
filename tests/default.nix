@@ -3,9 +3,9 @@
 }:
 
 let
-  # This list cannot grow indefinitely because otherwise the CI will run forever
-  # To build a Bom, all builtime dependenices need to be downloaded, thus, a lot
-  # of data is downloaded and a lot of time is spend evaluating 
+  # This list cannot grow indefinitely because building a Bom requires all
+  # builtime dependenices to be downloaded or built. A lot of time is spent
+  # evaluating, downloading, and building.
   testDerivations = with pkgs; [
     hello
     python3
