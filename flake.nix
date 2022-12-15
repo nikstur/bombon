@@ -25,9 +25,8 @@
           overlays = [ (import rust-overlay) ];
         };
 
-        rustVersion = "1.64.0";
-        rustToolChain = pkgs.rust-bin.stable.${rustVersion}.default;
-        craneLib = (crane.mkLib pkgs).overrideToolchain rustToolChain;
+        rustToolChain = pkgs.rust-bin.fromRustupToolchainFile ./transformer/rust-toolchain.toml;
+        craneLib = crane.lib.${system}.overrideToolchain rustToolChain;
 
         # Include the Git commit hash as the version of bombon in generated Boms
         GIT_COMMIT = pkgs.lib.optionalString (self ? rev) self.rev;
