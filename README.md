@@ -27,7 +27,7 @@ Or manually copy this to `flake.nix` in your repository:
       pkgs = import nixpkgs { inherit system; };
     in
     {
-      packages.${system}.default = bombon.lib.${system}.buildBom pkgs.hello;
+      packages.${system}.default = bombon.lib.${system}.buildBom pkgs.hello { };
     };
 }
 ```
@@ -47,8 +47,14 @@ let
   bombon = import sources.bombon;
   system = "x86_64-linux";
 in
-bombon.lib.${system}.buildBom pkgs.hello
+bombon.lib.${system}.buildBom pkgs.hello { }
 ```
+
+## Options
+
+`buildBom` accepts options as an attribute set. All attributes are optional:
+
+- `includeBuildtimeDependencies`: include buildtime dependencies in output.
 
 ## Contributing
 
@@ -64,7 +70,7 @@ are interested in.
 
 ```nix-repl
 :l .
-:b lib.x86_64-linux.buildBom python3
+:b lib.x86_64-linux.buildBom python3 { }
 ```
 
 Remember to re load the bombon flake every time you made changes to any of the
