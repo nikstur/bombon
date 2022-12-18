@@ -1,5 +1,4 @@
 use std::hash::{Hash, Hasher};
-use std::vec::IntoIter;
 
 use serde::Deserialize;
 
@@ -7,10 +6,6 @@ use serde::Deserialize;
 pub struct BuildtimeInput(Vec<Derivation>);
 
 impl BuildtimeInput {
-    pub fn into_iter(self) -> IntoIter<Derivation> {
-        self.0.into_iter()
-    }
-
     pub fn remove_derivation(&mut self, derivation_path: &str) -> Derivation {
         let index = self
             .0
@@ -18,6 +13,15 @@ impl BuildtimeInput {
             .position(|derivation| derivation.path == derivation_path)
             .expect("Unrecovereable error: buildtime input does not include target");
         self.0.swap_remove(index)
+    }
+}
+
+impl IntoIterator for BuildtimeInput {
+    type Item = Derivation;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
@@ -30,17 +34,19 @@ pub struct Derivation {
     pub meta: Option<Meta>,
 }
 
-// Implement Eq and Hash so Itertools::unique can identify unique depdencies by path
+// Implement Eq and Hash so Itertools::unique can identify unique depdencies by path. The name
+// seems to be the best proxy to detect duplicates. Different outputs of the same derivation have
+// different paths. Thus, filtering by path alone doesn't adequately remove duplicates.
 impl PartialEq for Derivation {
     fn eq(&self, other: &Self) -> bool {
-        self.path == other.path
+        self.name == other.name
     }
 }
 impl Eq for Derivation {}
 
 impl Hash for Derivation {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.path.hash(state);
+        self.name.hash(state);
     }
 }
 
