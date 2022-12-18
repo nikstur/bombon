@@ -3,14 +3,24 @@
 }:
 
 let
+  buildtimeOptions = { includeBuildtimeDependencies = true; };
+
   # This list cannot grow indefinitely because building a Bom requires all
   # builtime dependenices to be downloaded or built. A lot of time is spent
   # evaluating, downloading, and building.
   testDerivations = with pkgs; [
-    hello
-    python3
-    python3Packages.poetry # weird string license in buildtimeDependencies
-    git
+    { name = "hello"; drv = hello; options = { }; }
+    { name = "hello-buildtime"; drv = hello; options = buildtimeOptions; }
+
+    { name = "python3"; drv = python3; options = { }; }
+    { name = "python3-buildtime"; drv = python3; options = buildtimeOptions; }
+
+    # weird string license in buildtimeDependencies
+    { name = "poetry"; drv = python3Packages.poetry; options = { }; }
+    { name = "poetry-buildtime"; drv = python3Packages.poetry; options = buildtimeOptions; }
+
+    { name = "git"; drv = git; options = { }; }
+    { name = "git-buildtime"; drv = git; options = buildtimeOptions; }
   ];
 
   cycloneDxSpec = pkgs.fetchFromGitHub {
@@ -27,15 +37,15 @@ let
       --replace 'http://cyclonedx.org/schema/${name}' 'file://${cycloneDxSpec}/schema/'
   '';
 
-  buildBomAndValidate = drv:
+  buildBomAndValidate = drv: options:
     pkgs.runCommand "${drv.name}-bom-validation" { nativeBuildInputs = [ pkgs.check-jsonschema ]; } ''
       check-jsonschema \
         --schemafile "${relativeReferencesSchema}" \
-        "${buildBom drv}"
+        "${buildBom drv options}"
       touch $out
     '';
 
   genAttrsFromDrvs = drvs: f:
-    builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.name (f d)) drvs);
+    builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.name (f d.drv d.options)) drvs);
 in
 genAttrsFromDrvs testDerivations buildBomAndValidate

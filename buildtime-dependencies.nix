@@ -5,6 +5,8 @@
 }:
 
 let
+  hello = "hwllo";
+
   drvOutputs = drv:
     if builtins.hasAttr "outputs" drv
     then map (output: drv.${output}) drv.outputs

@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use anyhow::Result;
 use cyclonedx_bom::external_models::uri::Purl;
 use cyclonedx_bom::models::bom::{Bom, UrnUuid};
@@ -10,9 +8,8 @@ use cyclonedx_bom::models::external_reference::{
 use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
 use cyclonedx_bom::models::metadata::Metadata;
 use cyclonedx_bom::models::tool::{Tool, Tools};
-use itertools::Itertools;
 
-use crate::buildtime_input::{BuildtimeInput, Derivation, Meta};
+use crate::buildtime_input::{self, Derivation, Meta};
 
 const VERSION: &str = env!("GIT_COMMIT");
 
@@ -25,17 +22,9 @@ impl CycloneDXBom {
         Ok(output)
     }
 
-    pub fn build(
-        target: Derivation,
-        buildtime_input: BuildtimeInput,
-        runtime_input: Vec<&str>,
-    ) -> Result<Self> {
-        let owned_runtime_input = runtime_input.into_iter().map(|x| x.to_owned());
-
-        let runtime_input_set = HashSet::from_iter(owned_runtime_input);
-
+    pub fn build(target: Derivation, components: CycloneDXComponents) -> Result<Self> {
         let output = Self(Bom {
-            components: Some(input_to_components(buildtime_input, runtime_input_set)),
+            components: Some(components.into()),
             metadata: Some(metadata_from_derivation(target)),
             ..Bom::default()
         });
@@ -43,40 +32,56 @@ impl CycloneDXBom {
     }
 }
 
-fn input_to_components(
-    buildtime_input: BuildtimeInput,
-    runtime_input_set: HashSet<String>,
-) -> Components {
-    Components(
-        buildtime_input
-            .into_iter()
-            .unique()
-            .filter(|derivation| runtime_input_set.contains(&derivation.path))
-            .map(derivation_to_component)
-            .collect(),
-    )
+pub struct CycloneDXComponents(Components);
+
+impl CycloneDXComponents {
+    pub fn new(derivations: impl IntoIterator<Item = Derivation>) -> Self {
+        Self(Components(
+            derivations
+                .into_iter()
+                .map(CycloneDXComponent::from_derivation)
+                .map(CycloneDXComponent::into)
+                .collect(),
+        ))
+    }
 }
 
-fn derivation_to_component(derivation: Derivation) -> Component {
-    let name = match derivation.pname {
-        Some(pname) => pname,
-        None => derivation.name.unwrap_or_default(),
-    };
-    let version = derivation.version.unwrap_or_default();
-    let mut component = Component::new(
-        // Classification::Application is used as per specification when the type is not known
-        // as is the case for dependencies from Nix
-        Classification::Application,
-        &name,
-        &version,
-        Some(UrnUuid::generate().to_string()),
-    );
-    component.purl = Purl::new("nix", &name, &version).ok();
-    if let Some(meta) = derivation.meta {
-        component.licenses = convert_licenses(&meta);
-        component.external_references = convert_homepage(&meta).map(ExternalReferences);
+impl From<CycloneDXComponents> for Components {
+    fn from(value: CycloneDXComponents) -> Self {
+        value.0
     }
-    component
+}
+
+struct CycloneDXComponent(Component);
+
+impl CycloneDXComponent {
+    fn from_derivation(derivation: Derivation) -> Self {
+        let name = match derivation.pname {
+            Some(pname) => pname,
+            None => derivation.name.unwrap_or_default(),
+        };
+        let version = derivation.version.unwrap_or_default();
+        let mut component = Component::new(
+            // Classification::Application is used as per specification when the type is not known
+            // as is the case for dependencies from Nix
+            Classification::Application,
+            &name,
+            &version,
+            Some(UrnUuid::generate().to_string()),
+        );
+        component.purl = Purl::new("nix", &name, &version).ok();
+        if let Some(meta) = derivation.meta {
+            component.licenses = convert_licenses(&meta);
+            component.external_references = convert_homepage(&meta).map(ExternalReferences);
+        }
+        Self(component)
+    }
+}
+
+impl From<CycloneDXComponent> for Component {
+    fn from(value: CycloneDXComponent) -> Self {
+        value.0
+    }
 }
 
 fn convert_licenses(meta: &Meta) -> Option<Licenses> {
@@ -91,7 +96,7 @@ fn convert_licenses(meta: &Meta) -> Option<Licenses> {
     }))
 }
 
-fn convert_license(license: crate::buildtime_input::License) -> LicenseChoice {
+fn convert_license(license: buildtime_input::License) -> LicenseChoice {
     match license.spdx_id {
         Some(spdx_id) => match License::license_id(&spdx_id) {
             Ok(license) => LicenseChoice::License(license),
@@ -121,7 +126,7 @@ fn metadata_from_derivation(derivation: Derivation) -> Metadata {
         timestamp: None,
         tools: Some(Tools(vec![Tool::new("nikstur", "bombon", VERSION)])),
         authors: None,
-        component: Some(derivation_to_component(derivation)),
+        component: Some(CycloneDXComponent::from_derivation(derivation).into()),
         manufacture: None,
         supplier: None,
         licenses: None,

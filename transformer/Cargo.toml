@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.66"
+clap = { version = "4.0.29", features = ["derive"] }
 cyclonedx-bom = "0.4.0"
 itertools = "0.10.5"
 serde = { version = "1.0.150", features = [ "derive" ] }
