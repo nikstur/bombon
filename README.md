@@ -56,6 +56,14 @@ bombon.lib.${system}.buildBom pkgs.hello { }
 
 - `includeBuildtimeDependencies`: boolean flag to include buildtime dependencies in output.
 
+Example:
+
+```nix
+bombon.lib.${system}.buildBom pkgs.hello {
+  includeBuildtimeDependencies = true;
+}
+```
+
 ## Contributing
 
 During development, the Nix Repl is a convenient and quick way to test changes.
