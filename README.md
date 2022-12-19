@@ -54,7 +54,7 @@ bombon.lib.${system}.buildBom pkgs.hello { }
 
 `buildBom` accepts options as an attribute set. All attributes are optional:
 
-- `includeBuildtimeDependencies`: include buildtime dependencies in output.
+- `includeBuildtimeDependencies`: boolean flag to include buildtime dependencies in output.
 
 ## Contributing
 
