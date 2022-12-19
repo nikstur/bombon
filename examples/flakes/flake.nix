@@ -11,6 +11,6 @@
       pkgs = import nixpkgs { inherit system; };
     in
     {
-      packages.${system}.default = bombon.lib.${system}.buildBom pkgs.hello;
+      packages.${system}.default = bombon.lib.${system}.buildBom pkgs.hello { };
     };
 }
