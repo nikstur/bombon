@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.70"
+anyhow = "1.0.71"
 clap = { version = "4.2.1", features = ["derive"] }
 cyclonedx-bom = "0.4.0"
 itertools = "0.10.5"
