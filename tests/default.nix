@@ -16,8 +16,8 @@ let
     { name = "python3-buildtime"; drv = python3; options = buildtimeOptions; }
 
     # weird string license in buildtimeDependencies
-    { name = "poetry"; drv = python3Packages.poetry; options = { }; }
-    { name = "poetry-buildtime"; drv = python3Packages.poetry; options = buildtimeOptions; }
+    { name = "poetry"; drv = poetry; options = { }; }
+    { name = "poetry-buildtime"; drv = poetry; options = buildtimeOptions; }
 
     { name = "git"; drv = git; options = { }; }
     { name = "git-buildtime"; drv = git; options = buildtimeOptions; }
