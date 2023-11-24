@@ -2,6 +2,9 @@ name: "Build legacy Nix package on Ubuntu"
 
 on:
   push:
+    branches: [main]
+  pull_request:
+  merge_group:
 
 jobs:
   build:
