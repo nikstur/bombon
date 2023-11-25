@@ -34,7 +34,7 @@ pub struct Derivation {
     pub meta: Option<Meta>,
 }
 
-// Implement Eq and Hash so Itertools::unique can identify unique depdencies by path. The name
+// Implement Eq and Hash so Itertools::unique can identify unique dependencies by path. The name
 // seems to be the best proxy to detect duplicates. Different outputs of the same derivation have
 // different paths. Thus, filtering by path alone doesn't adequately remove duplicates.
 impl PartialEq for Derivation {
