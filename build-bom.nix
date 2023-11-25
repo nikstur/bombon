@@ -7,7 +7,7 @@
 
 drv: { includeBuildtimeDependencies ? false }:
 let
-  flags = [ ] ++ lib.optionals includeBuildtimeDependencies [
+  flags = lib.optionals includeBuildtimeDependencies [
     "--include-buildtime-dependencies"
   ];
 in
