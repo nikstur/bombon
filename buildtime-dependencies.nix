@@ -55,7 +55,7 @@ let
       (map (obj: (fields obj.drv)) (buildtimeDerivations drv))
     );
 in
-# Format the json so that the transformer can better report where erros occur
+# Format the json so that the transformer can better report where errors occur
 runCommand "${drv.name}-buildtime-dependencies.json" { } ''
   ${jq}/bin/jq < ${unformattedJson} > "$out"
 ''

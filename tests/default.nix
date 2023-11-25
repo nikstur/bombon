@@ -6,7 +6,7 @@ let
   buildtimeOptions = { includeBuildtimeDependencies = true; };
 
   # This list cannot grow indefinitely because building a Bom requires all
-  # builtime dependenices to be downloaded or built. A lot of time is spent
+  # builtime dependencies to be downloaded or built. A lot of time is spent
   # evaluating, downloading, and building.
   testDerivations = with pkgs; [
     { name = "hello"; drv = hello; options = { }; }
