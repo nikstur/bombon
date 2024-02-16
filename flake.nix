@@ -75,23 +75,23 @@
 
     perSystem = { config, system, pkgs, lib, ... }:
       let
-        rustToolChain = pkgs.rust-bin.fromRustupToolchainFile ./transformer/rust-toolchain.toml;
+        rustToolChain = pkgs.rust-bin.fromRustupToolchainFile ./rust/transformer/rust-toolchain.toml;
         craneLib = inputs.crane.lib.${system}.overrideToolchain rustToolChain;
 
         # Include the Git commit hash as the version of bombon in generated Boms
         GIT_COMMIT = lib.optionalString (self ? rev) self.rev;
 
         commonArgs = {
-          src = craneLib.cleanCargoSource ./transformer;
+          src = craneLib.cleanCargoSource ./rust/transformer;
           inherit GIT_COMMIT;
         };
         cargoArtifacts = craneLib.buildDepsOnly commonArgs;
         transformer = craneLib.buildPackage (commonArgs // { inherit cargoArtifacts; });
 
-        buildBom = pkgs.callPackage ./build-bom.nix {
+        buildBom = pkgs.callPackage ./nix/build-bom.nix {
           inherit transformer;
-          buildtimeDependencies = pkgs.callPackage ./buildtime-dependencies.nix { };
-          runtimeDependencies = pkgs.callPackage ./runtime-dependencies.nix { };
+          buildtimeDependencies = pkgs.callPackage ./nix/buildtime-dependencies.nix { };
+          runtimeDependencies = pkgs.callPackage ./nix/runtime-dependencies.nix { };
         };
       in
       {
@@ -111,7 +111,7 @@
         checks = {
           clippy = craneLib.cargoClippy (commonArgs // { inherit cargoArtifacts; });
           rustfmt = craneLib.cargoFmt (commonArgs // { inherit cargoArtifacts; });
-        } // import ./tests { inherit pkgs buildBom; };
+        } // import ./nix/tests { inherit pkgs buildBom; };
 
         pre-commit = {
           check.enable = true;
