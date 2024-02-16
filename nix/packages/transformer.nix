@@ -7,7 +7,7 @@
 
 rustPlatform.buildRustPackage {
   pname = "bombon-transformer";
-  version = "0.1.0";
+  version = (builtins.fromTOML (builtins.readFile ../../rust/transformer/Cargo.toml)).package.version;
 
   src = gitignoreSource ../../rust/transformer;
 

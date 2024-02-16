@@ -22,18 +22,19 @@
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
 
+    gitignore = {
+      url = "github:hercules-ci/gitignore.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     pre-commit-hooks-nix = {
       url = "github:cachix/pre-commit-hooks.nix";
       inputs = {
         nixpkgs.follows = "nixpkgs";
+        gitignore.follows = "gitignore";
         flake-utils.follows = "flake-utils";
         flake-compat.follows = "flake-compat";
       };
-    };
-
-    gitignore = {
-      url = "github:hercules-ci/gitignore.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
   };
