@@ -5,7 +5,12 @@
 
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-    flake-utils.url = "github:numtide/flake-utils";
+    systems.url = "github:nix-systems/default";
+
+    flake-utils = {
+      url = "github:numtide/flake-utils";
+      inputs.systems.follows = "systems";
+    };
 
     flake-compat = {
       url = "github:edolstra/flake-compat";
@@ -39,107 +44,98 @@
 
   };
 
-  outputs = inputs@{ self, flake-parts, ... }: flake-parts.lib.mkFlake { inherit inputs; } (_:
-    let
-      # This is effectively just boilerplate to allow us to keep the `lib`
-      # output.
-      libOutputModule = { lib, ... }: flake-parts.lib.mkTransposedPerSystemModule {
-        name = "lib";
-        option = lib.mkOption {
-          type = lib.types.lazyAttrsOf lib.types.anything;
-          default = { };
-        };
-        file = "";
-      };
-    in
-    {
+  outputs = inputs@{ self, flake-parts, systems, ... }: flake-parts.lib.mkFlake { inherit inputs; } {
+    systems = import systems;
 
-      imports = [
+    imports =
+      let
+        # This is effectively just boilerplate to allow us to keep the `lib`
+        # output.
+        libOutputModule = { lib, ... }: flake-parts.lib.mkTransposedPerSystemModule {
+          name = "lib";
+          option = lib.mkOption {
+            type = lib.types.lazyAttrsOf lib.types.anything;
+            default = { };
+          };
+          file = "";
+        };
+      in
+      [
         inputs.pre-commit-hooks-nix.flakeModule
         libOutputModule
       ];
 
-      flake = {
-        templates.default = {
-          path = builtins.filterSource (path: type: baseNameOf path == "flake.nix")
-            ./examples/flakes;
-          description = "Build a Bom for GNU hello";
-        };
+    flake = {
+      templates.default = {
+        path = builtins.filterSource (path: type: baseNameOf path == "flake.nix")
+          ./examples/flakes;
+        description = "Build a Bom for GNU hello";
       };
+    };
 
-      systems = [
-        "x86_64-linux"
-        "aarch64-linux"
+    perSystem = { config, system, pkgs, lib, ... }:
+      let
+        rustToolChain = pkgs.rust-bin.fromRustupToolchainFile ./transformer/rust-toolchain.toml;
+        craneLib = inputs.crane.lib.${system}.overrideToolchain rustToolChain;
 
-        "x86_64-darwin"
-        "aarch64-darwin"
-      ];
+        # Include the Git commit hash as the version of bombon in generated Boms
+        GIT_COMMIT = lib.optionalString (self ? rev) self.rev;
 
-      perSystem = { config, system, ... }:
-        let
-          pkgs = import inputs.nixpkgs {
-            inherit system;
-            overlays = [ (import inputs.rust-overlay) ];
-          };
+        commonArgs = {
+          src = craneLib.cleanCargoSource ./transformer;
+          inherit GIT_COMMIT;
+        };
+        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+        transformer = craneLib.buildPackage (commonArgs // { inherit cargoArtifacts; });
 
-          rustToolChain = pkgs.rust-bin.fromRustupToolchainFile ./transformer/rust-toolchain.toml;
-          craneLib = inputs.crane.lib.${system}.overrideToolchain rustToolChain;
+        buildBom = pkgs.callPackage ./build-bom.nix {
+          inherit transformer;
+          buildtimeDependencies = pkgs.callPackage ./buildtime-dependencies.nix { };
+          runtimeDependencies = pkgs.callPackage ./runtime-dependencies.nix { };
+        };
+      in
+      {
+        _module.args.pkgs = import inputs.nixpkgs {
+          inherit system;
+          overlays = [ (import inputs.rust-overlay) ];
+        };
 
-          # Include the Git commit hash as the version of bombon in generated Boms
-          GIT_COMMIT = pkgs.lib.optionalString (self ? rev) self.rev;
+        lib = { inherit buildBom; };
 
-          commonArgs = {
-            src = craneLib.cleanCargoSource ./transformer;
-            inherit GIT_COMMIT;
-          };
-          cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-          transformer = craneLib.buildPackage (commonArgs // { inherit cargoArtifacts; });
+        packages = {
+          # This is mostly here for development
+          inherit transformer;
+          default = transformer;
+        };
 
-          buildBom = pkgs.callPackage ./build-bom.nix {
-            inherit transformer;
-            buildtimeDependencies = pkgs.callPackage ./buildtime-dependencies.nix { };
-            runtimeDependencies = pkgs.callPackage ./runtime-dependencies.nix { };
-          };
-        in
-        {
+        checks = {
+          clippy = craneLib.cargoClippy (commonArgs // { inherit cargoArtifacts; });
+          rustfmt = craneLib.cargoFmt (commonArgs // { inherit cargoArtifacts; });
+        } // import ./tests { inherit pkgs buildBom; };
 
-          lib = { inherit buildBom; };
+        pre-commit = {
+          check.enable = true;
 
-          packages = {
-            # This is mostly here for development
-            inherit transformer;
-            default = transformer;
-          };
-
-          checks = {
-            clippy = craneLib.cargoClippy (commonArgs // { inherit cargoArtifacts; });
-            rustfmt = craneLib.cargoFmt (commonArgs // { inherit cargoArtifacts; });
-          } // import ./tests { inherit pkgs buildBom; };
-
-          pre-commit = {
-            check.enable = true;
-
-            settings = {
-              hooks = {
-                nixpkgs-fmt.enable = true;
-                typos.enable = true;
-              };
-
-              settings.statix.ignore = [ "sources.nix" ];
+          settings = {
+            hooks = {
+              nixpkgs-fmt.enable = true;
+              typos.enable = true;
             };
 
+            settings.statix.ignore = [ "sources.nix" ];
           };
-
-          devShells.default = pkgs.mkShell {
-            shellHook = ''
-              ${config.pre-commit.installationScript}
-            '';
-
-            inputsFrom = [ transformer ];
-
-            inherit GIT_COMMIT;
-          };
-
         };
-    });
+
+        devShells.default = pkgs.mkShell {
+          shellHook = ''
+            ${config.pre-commit.installationScript}
+          '';
+
+          inputsFrom = [ transformer ];
+
+          inherit GIT_COMMIT;
+        };
+
+      };
+  };
 }
