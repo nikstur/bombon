@@ -11,7 +11,7 @@ use cyclonedx_bom::models::tool::{Tool, Tools};
 
 use crate::buildtime_input::{self, Derivation, Meta};
 
-const VERSION: &str = env!("GIT_COMMIT");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub struct CycloneDXBom(Bom);
 

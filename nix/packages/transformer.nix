@@ -1,8 +1,6 @@
 { lib
 , rustPlatform
 , gitignoreSource
-
-, GIT_COMMIT
 }:
 
 rustPlatform.buildRustPackage {
@@ -13,10 +11,6 @@ rustPlatform.buildRustPackage {
 
   cargoLock = {
     lockFile = ../../rust/transformer/Cargo.lock;
-  };
-
-  env = {
-    inherit GIT_COMMIT;
   };
 
   meta = with lib; {

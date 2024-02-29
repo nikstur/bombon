@@ -70,12 +70,7 @@
 
     perSystem = { config, system, pkgs, lib, ... }:
       let
-        # Include the Git commit hash as the version of bombon in generated Boms
-        GIT_COMMIT = lib.optionalString (self ? rev) self.rev;
-
-        transformer = pkgs.callPackage ./nix/packages/transformer.nix {
-          inherit GIT_COMMIT;
-        };
+        transformer = pkgs.callPackage ./nix/packages/transformer.nix { };
 
         buildBom = pkgs.callPackage ./nix/build-bom.nix {
           inherit transformer;
@@ -138,8 +133,6 @@
           inputsFrom = [ transformer ];
 
           RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
-
-          inherit GIT_COMMIT;
         };
 
       };
