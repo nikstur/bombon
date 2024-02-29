@@ -18,7 +18,7 @@ pub struct CycloneDXBom(Bom);
 impl CycloneDXBom {
     pub fn serialize(self) -> Result<Vec<u8>> {
         let mut output = Vec::<u8>::new();
-        self.0.output_as_json_v1_3(&mut output)?;
+        self.0.output_as_json_v1_4(&mut output)?;
         Ok(output)
     }
 
