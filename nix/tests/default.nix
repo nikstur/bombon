@@ -26,12 +26,12 @@ let
   cycloneDxSpec = pkgs.fetchFromGitHub {
     owner = "CycloneDX";
     repo = "specification";
-    rev = "1.3";
-    sha256 = "sha256-nPQLvix401JTUAfw6f2nnvhQT8LxRGlsWkJ1Iq/26H0=";
+    rev = "1.4";
+    sha256 = "sha256-N9aEK2oYk3SoCczrRMt5ycdgXCPA5SHTKsS2CffFY14=";
   };
 
   # To avoid network access, the base URL is replaced with a local URI to the above downloaded schemas
-  name = "bom-1.3.schema.json";
+  name = "bom-1.4.schema.json";
   relativeReferencesSchema = pkgs.runCommand name { } ''
     substitute "${cycloneDxSpec}/schema/${name}" "$out" \
       --replace 'http://cyclonedx.org/schema/${name}' 'file://${cycloneDxSpec}/schema/'
