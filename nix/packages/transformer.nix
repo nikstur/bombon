@@ -1,22 +1,15 @@
 { lib
 , rustPlatform
-, gitignoreSource
-
-, GIT_COMMIT
 }:
 
 rustPlatform.buildRustPackage {
   pname = "bombon-transformer";
   version = (builtins.fromTOML (builtins.readFile ../../rust/transformer/Cargo.toml)).package.version;
 
-  src = gitignoreSource ../../rust/transformer;
+  src = lib.sourceFilesBySuffices ../../rust/transformer [ ".rs" ".toml" ".lock" ];
 
   cargoLock = {
     lockFile = ../../rust/transformer/Cargo.lock;
-  };
-
-  env = {
-    inherit GIT_COMMIT;
   };
 
   meta = with lib; {

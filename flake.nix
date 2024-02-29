@@ -12,28 +12,16 @@
       inputs.systems.follows = "systems";
     };
 
-    flake-compat = {
-      url = "github:edolstra/flake-compat";
-      flake = false;
-    };
-
     flake-parts = {
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs-lib.follows = "nixpkgs";
-    };
-
-    gitignore = {
-      url = "github:hercules-ci/gitignore.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     pre-commit-hooks-nix = {
       url = "github:cachix/pre-commit-hooks.nix";
       inputs = {
         nixpkgs.follows = "nixpkgs";
-        gitignore.follows = "gitignore";
         flake-utils.follows = "flake-utils";
-        flake-compat.follows = "flake-compat";
       };
     };
 
@@ -70,18 +58,8 @@
 
     perSystem = { config, system, pkgs, lib, ... }:
       let
-        # Include the Git commit hash as the version of bombon in generated Boms
-        GIT_COMMIT = lib.optionalString (self ? rev) self.rev;
-
-        transformer = pkgs.callPackage ./nix/packages/transformer.nix {
-          inherit GIT_COMMIT;
-        };
-
-        buildBom = pkgs.callPackage ./nix/build-bom.nix {
-          inherit transformer;
-          buildtimeDependencies = pkgs.callPackage ./nix/buildtime-dependencies.nix { };
-          runtimeDependencies = pkgs.callPackage ./nix/runtime-dependencies.nix { };
-        };
+        bombon = import ./. { inherit pkgs; };
+        inherit (bombon) transformer buildBom;
       in
       {
         _module.args.pkgs = import inputs.nixpkgs {
@@ -138,8 +116,6 @@
           inputsFrom = [ transformer ];
 
           RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
-
-          inherit GIT_COMMIT;
         };
 
       };

@@ -1,10 +1,11 @@
-(import
-  (
-    let lock = builtins.fromJSON (builtins.readFile ./flake.lock); in
-    fetchTarball {
-      url = lock.nodes.flake-compat.locked.url or "https://github.com/edolstra/flake-compat/archive/${lock.nodes.flake-compat.locked.rev}.tar.gz";
-      sha256 = lock.nodes.flake-compat.locked.narHash;
-    }
-  )
-  { src = ./.; }
-).defaultNix
+{ pkgs }: rec {
+
+  transformer = pkgs.callPackage ./nix/packages/transformer.nix { };
+
+  buildBom = pkgs.callPackage ./nix/build-bom.nix {
+    inherit transformer;
+    buildtimeDependencies = pkgs.callPackage ./nix/buildtime-dependencies.nix { };
+    runtimeDependencies = pkgs.callPackage ./nix/runtime-dependencies.nix { };
+  };
+
+}
