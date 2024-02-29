@@ -22,14 +22,8 @@
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
 
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "flake-utils";
-    };
-
-    crane = {
-      url = "github:ipetkov/crane";
+    gitignore = {
+      url = "github:hercules-ci/gitignore.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -37,6 +31,7 @@
       url = "github:cachix/pre-commit-hooks.nix";
       inputs = {
         nixpkgs.follows = "nixpkgs";
+        gitignore.follows = "gitignore";
         flake-utils.follows = "flake-utils";
         flake-compat.follows = "flake-compat";
       };
@@ -75,29 +70,27 @@
 
     perSystem = { config, system, pkgs, lib, ... }:
       let
-        rustToolChain = pkgs.rust-bin.fromRustupToolchainFile ./transformer/rust-toolchain.toml;
-        craneLib = inputs.crane.lib.${system}.overrideToolchain rustToolChain;
-
         # Include the Git commit hash as the version of bombon in generated Boms
         GIT_COMMIT = lib.optionalString (self ? rev) self.rev;
 
-        commonArgs = {
-          src = craneLib.cleanCargoSource ./transformer;
+        transformer = pkgs.callPackage ./nix/packages/transformer.nix {
           inherit GIT_COMMIT;
         };
-        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-        transformer = craneLib.buildPackage (commonArgs // { inherit cargoArtifacts; });
 
-        buildBom = pkgs.callPackage ./build-bom.nix {
+        buildBom = pkgs.callPackage ./nix/build-bom.nix {
           inherit transformer;
-          buildtimeDependencies = pkgs.callPackage ./buildtime-dependencies.nix { };
-          runtimeDependencies = pkgs.callPackage ./runtime-dependencies.nix { };
+          buildtimeDependencies = pkgs.callPackage ./nix/buildtime-dependencies.nix { };
+          runtimeDependencies = pkgs.callPackage ./nix/runtime-dependencies.nix { };
         };
       in
       {
         _module.args.pkgs = import inputs.nixpkgs {
           inherit system;
-          overlays = [ (import inputs.rust-overlay) ];
+          overlays = [
+            (_final: _prev: {
+              inherit (inputs.gitignore.lib) gitignoreSource;
+            })
+          ];
         };
 
         lib = { inherit buildBom; };
@@ -109,9 +102,15 @@
         };
 
         checks = {
-          clippy = craneLib.cargoClippy (commonArgs // { inherit cargoArtifacts; });
-          rustfmt = craneLib.cargoFmt (commonArgs // { inherit cargoArtifacts; });
-        } // import ./tests { inherit pkgs buildBom; };
+          clippy = transformer.overrideAttrs (_: previousAttrs: {
+            nativeCheckInputs = (previousAttrs.nativeCheckInputs or [ ]) ++ [ pkgs.clippy ];
+            checkPhase = "cargo clippy";
+          });
+          rustfmt = transformer.overrideAttrs (_: previousAttrs: {
+            nativeCheckInputs = (previousAttrs.nativeCheckInputs or [ ]) ++ [ pkgs.rustfmt ];
+            checkPhase = "cargo fmt --check";
+          });
+        } // import ./nix/tests { inherit pkgs buildBom; };
 
         pre-commit = {
           check.enable = true;
@@ -131,7 +130,14 @@
             ${config.pre-commit.installationScript}
           '';
 
+          packages = [
+            pkgs.clippy
+            pkgs.rustfmt
+          ];
+
           inputsFrom = [ transformer ];
+
+          RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
 
           inherit GIT_COMMIT;
         };
