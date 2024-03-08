@@ -12,7 +12,7 @@ pub struct Cli {
     include_buildtime_dependencies: bool,
 
     /// Path to target derivation
-    target: PathBuf,
+    target: String,
 
     /// Path to JSON containing the buildtime input
     buildtime_input: PathBuf,

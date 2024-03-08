@@ -3,6 +3,7 @@
 mod buildtime_input;
 mod cli;
 mod cyclonedx;
+mod derivation;
 mod runtime_input;
 mod transform;
 
