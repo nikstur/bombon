@@ -1,6 +1,6 @@
 use anyhow::Result;
 use cyclonedx_bom::external_models::uri::Purl;
-use cyclonedx_bom::models::bom::{Bom, UrnUuid};
+use cyclonedx_bom::models::bom::Bom;
 use cyclonedx_bom::models::component::{Classification, Component, Components};
 use cyclonedx_bom::models::external_reference::{
     ExternalReference, ExternalReferenceType, ExternalReferences,
@@ -9,7 +9,7 @@ use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
 use cyclonedx_bom::models::metadata::Metadata;
 use cyclonedx_bom::models::tool::{Tool, Tools};
 
-use crate::buildtime_input::{self, Derivation, Meta};
+use crate::derivation::{self, Derivation, Meta};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -67,7 +67,13 @@ impl CycloneDXComponent {
             Classification::Application,
             &name,
             &version,
-            Some(UrnUuid::generate().to_string()),
+            Some(
+                derivation
+                    .path
+                    .strip_prefix("/nix/store/")
+                    .unwrap_or(&derivation.path)
+                    .to_string(),
+            ),
         );
         component.purl = Purl::new("nix", &name, &version).ok();
         if let Some(meta) = derivation.meta {
@@ -96,7 +102,7 @@ fn convert_licenses(meta: &Meta) -> Option<Licenses> {
     }))
 }
 
-fn convert_license(license: buildtime_input::License) -> LicenseChoice {
+fn convert_license(license: derivation::License) -> LicenseChoice {
     match license.spdx_id {
         Some(spdx_id) => match License::license_id(&spdx_id) {
             Ok(license) => LicenseChoice::License(license),

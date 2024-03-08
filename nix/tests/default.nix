@@ -30,17 +30,11 @@ let
     sha256 = "sha256-N9aEK2oYk3SoCczrRMt5ycdgXCPA5SHTKsS2CffFY14=";
   };
 
-  # To avoid network access, the base URL is replaced with a local URI to the above downloaded schemas
-  name = "bom-1.4.schema.json";
-  relativeReferencesSchema = pkgs.runCommand name { } ''
-    substitute "${cycloneDxSpec}/schema/${name}" "$out" \
-      --replace 'http://cyclonedx.org/schema/${name}' 'file://${cycloneDxSpec}/schema/'
-  '';
-
   buildBomAndValidate = drv: options:
     pkgs.runCommand "${drv.name}-bom-validation" { nativeBuildInputs = [ pkgs.check-jsonschema ]; } ''
       check-jsonschema \
-        --schemafile "${relativeReferencesSchema}" \
+        --schemafile "${cycloneDxSpec}/schema/bom-1.4.schema.json" \
+        --base-uri "${cycloneDxSpec}/schema/bom-1.4.schema.json" \
         "${buildBom drv options}"
       touch $out
     '';
