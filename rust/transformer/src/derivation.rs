@@ -11,8 +11,19 @@ pub struct Derivation {
 
 impl Derivation {
     pub fn new(store_path: &str) -> Self {
+        // Because we only have the store path we have to derive the pname and version from it
+        let stripped = store_path.strip_prefix("/nix/store/");
+        let pname = stripped
+            .and_then(|s| s.split('-').nth(1))
+            .map(ToOwned::to_owned);
+        let version = stripped
+            .and_then(|s| s.split('-').last())
+            .map(ToOwned::to_owned);
+
         Self {
             path: store_path.to_string(),
+            pname,
+            version,
             ..Self::default()
         }
     }
