@@ -1,6 +1,6 @@
 use anyhow::Result;
 use cyclonedx_bom::external_models::uri::Purl;
-use cyclonedx_bom::models::bom::{Bom, UrnUuid};
+use cyclonedx_bom::models::bom::Bom;
 use cyclonedx_bom::models::component::{Classification, Component, Components};
 use cyclonedx_bom::models::external_reference::{
     ExternalReference, ExternalReferenceType, ExternalReferences,
@@ -67,7 +67,13 @@ impl CycloneDXComponent {
             Classification::Application,
             &name,
             &version,
-            Some(UrnUuid::generate().to_string()),
+            Some(
+                derivation
+                    .path
+                    .strip_prefix("/nix/store/")
+                    .unwrap_or(&derivation.path)
+                    .to_string(),
+            ),
         );
         component.purl = Purl::new("nix", &name, &version).ok();
         if let Some(meta) = derivation.meta {
