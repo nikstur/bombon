@@ -64,12 +64,18 @@ bombon.buildBom pkgs.hello { }
 
 `buildBom` accepts options as an attribute set. All attributes are optional:
 
+- `extraPaths`: a list of store paths to also consider for the SBOM. This is
+  useful when you build images that discard their references (e.g. with
+  [`unsafeDiscardReferences`](https://nixos.org/manual/nix/stable/language/advanced-attributes#adv-attr-unsafeDiscardReferences)
+  but you still want their contents to appear in the SBOM. The `extraPaths`
+  will appear as components of the main derivation.
 - `includeBuildtimeDependencies`: boolean flag to include buildtime dependencies in output.
 
 Example:
 
 ```nix
 bombon.lib.${system}.buildBom pkgs.hello {
+  extraPaths = [ pkgs.git ];
   includeBuildtimeDependencies = true;
 }
 ```
