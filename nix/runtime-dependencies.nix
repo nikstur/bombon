@@ -4,7 +4,7 @@
 , closureInfo
 }:
 
-drv:
+drv: extraPaths:
 runCommand "${drv.name}-runtime-dependencies.txt" { } ''
-  cat ${closureInfo { rootPaths = [ drv ]; }}/store-paths > $out
+  cat ${closureInfo { rootPaths = [ drv ] ++ extraPaths; }}/store-paths > $out
 ''

@@ -21,6 +21,9 @@ let
 
     { name = "git"; drv = git; options = { }; }
     { name = "git-buildtime"; drv = git; options = buildtimeOptions; }
+
+    { name = "git-extra-paths"; drv = git; options = { extraPaths = [ poetry ]; }; }
+    { name = "git-extra-paths-buildtime"; drv = git; options = buildtimeOptions // { extraPaths = [ poetry ]; }; }
   ];
 
   cycloneDxSpec = pkgs.fetchFromGitHub {

@@ -5,6 +5,7 @@
 }:
 
 let
+
   drvOutputs = drv:
     if builtins.hasAttr "outputs" drv
     then map (output: drv.${output}) drv.outputs
@@ -40,19 +41,29 @@ let
   optionalGetAttrs = names: attrs:
     lib.genAttrs (builtins.filter (x: lib.hasAttr x attrs) names) (name: attrs.${name});
 
-  # Retrieves only the required fields from a derivation and renames outPath so that 
+  # Retrieves only the required fields from a derivation and renames outPath so that
   # builtins.toJSON actually emits JSON and not only the nix store path
   fields = drv:
     (optionalGetAttrs [ "name" "pname" "version" "meta" ] drv) // { path = drv.outPath; };
+
 in
-drv:
+
+drv: extraPaths:
+
 let
+
+  allDrvs = [ drv ] ++ extraPaths;
+
+  allBuildtimeDerivations = lib.flatten (map buildtimeDerivations allDrvs);
+
   unformattedJson = writeText
     "${drv.name}-unformatted-buildtime-dependencies.json"
     (builtins.toJSON
-      (map (obj: (fields obj.drv)) (buildtimeDerivations drv))
+      (map (obj: (fields obj.drv)) allBuildtimeDerivations)
     );
+
 in
+
 # Format the json so that the transformer can better report where errors occur
 runCommand "${drv.name}-buildtime-dependencies.json" { } ''
   ${jq}/bin/jq < ${unformattedJson} > "$out"
