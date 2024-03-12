@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use serde::Deserialize;
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -11,19 +12,16 @@ pub struct Derivation {
 
 impl Derivation {
     pub fn new(store_path: &str) -> Self {
-        // Because we only have the store path we have to derive the pname and version from it
-        let stripped = store_path.strip_prefix("/nix/store/");
-        let pname = stripped
-            .and_then(|s| s.split('-').nth(1))
-            .map(ToOwned::to_owned);
-        let version = stripped
-            .and_then(|s| s.split('-').last())
-            .map(ToOwned::to_owned);
+        // Because we only have the store path we have to derive the name from it
+        let name = store_path.strip_prefix("/nix/store/").map(|s| {
+            let mut split = s.split('-');
+            split.next();
+            split.join("-")
+        });
 
         Self {
             path: store_path.to_string(),
-            pname,
-            version,
+            name,
             ..Self::default()
         }
     }
