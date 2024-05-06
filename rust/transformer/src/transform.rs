@@ -1,5 +1,5 @@
 use std::io::{self, Write};
-use std::path::PathBuf;
+use std::path::Path;
 
 use anyhow::{Context, Result};
 use itertools::Itertools;
@@ -11,17 +11,17 @@ use crate::runtime_input::RuntimeInput;
 
 pub fn transform(
     include_buildtime_dependencies: bool,
-    target_path: String,
-    buildtime_input_path: PathBuf,
-    runtime_input_path: PathBuf,
+    target_path: &str,
+    buildtime_input_path: &Path,
+    runtime_input_path: &Path,
 ) -> Result<()> {
-    let mut buildtime_input = BuildtimeInput::from_file(&buildtime_input_path)?;
-    let target_derivation = buildtime_input.0.remove(&target_path).with_context(|| {
+    let mut buildtime_input = BuildtimeInput::from_file(buildtime_input_path)?;
+    let target_derivation = buildtime_input.0.remove(target_path).with_context(|| {
         format!("Buildtime input doesn't contain target derivation: {target_path}")
     })?;
 
-    let mut runtime_input = RuntimeInput::from_file(&runtime_input_path)?;
-    runtime_input.0.remove(&target_path);
+    let mut runtime_input = RuntimeInput::from_file(runtime_input_path)?;
+    runtime_input.0.remove(target_path);
 
     // Augment the runtime input with information from the buildtime input. The buildtime input,
     // however, is not a strict superset of the runtime input. This has to do with how we query the
@@ -48,7 +48,7 @@ pub fn transform(
         CycloneDXComponents::new(runtime_derivations)
     };
 
-    let bom = CycloneDXBom::build(target_derivation, components)?;
+    let bom = CycloneDXBom::build(target_derivation, components);
     io::stdout().write_all(&bom.serialize()?)?;
 
     Ok(())

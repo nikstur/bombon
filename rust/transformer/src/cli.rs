@@ -25,9 +25,9 @@ impl Cli {
     pub fn call(self) -> Result<()> {
         transform(
             self.include_buildtime_dependencies,
-            self.target,
-            self.buildtime_input,
-            self.runtime_input,
+            &self.target,
+            &self.buildtime_input,
+            &self.runtime_input,
         )
     }
 }

@@ -2,9 +2,12 @@
 , rustPlatform
 }:
 
+let
+  cargoToml = builtins.fromTOML (builtins.readFile ../../rust/transformer/Cargo.toml);
+in
 rustPlatform.buildRustPackage {
-  pname = "bombon-transformer";
-  version = (builtins.fromTOML (builtins.readFile ../../rust/transformer/Cargo.toml)).package.version;
+  pname = cargoToml.package.name;
+  inherit (cargoToml.package) version;
 
   src = lib.sourceFilesBySuffices ../../rust/transformer [ ".rs" ".toml" ".lock" ];
 
@@ -19,4 +22,3 @@ rustPlatform.buildRustPackage {
     mainProgram = "bombon-transformer";
   };
 }
-
