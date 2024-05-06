@@ -49,7 +49,7 @@ impl LicenseField {
             Self::LicenseList(license_list) => license_list.0,
             Self::License(license) => vec![license],
             // Fallback to handle very unusual license fields in Nix.
-            _ => vec![],
+            Self::String(_) => vec![],
         }
     }
 }

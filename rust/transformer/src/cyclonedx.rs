@@ -22,13 +22,12 @@ impl CycloneDXBom {
         Ok(output)
     }
 
-    pub fn build(target: Derivation, components: CycloneDXComponents) -> Result<Self> {
-        let output = Self(Bom {
+    pub fn build(target: Derivation, components: CycloneDXComponents) -> Self {
+        Self(Bom {
             components: Some(components.into()),
             metadata: Some(metadata_from_derivation(target)),
             ..Bom::default()
-        });
-        Ok(output)
+        })
     }
 }
 

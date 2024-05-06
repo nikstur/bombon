@@ -1,3 +1,4 @@
+use std::borrow::ToOwned;
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
@@ -10,7 +11,7 @@ impl RuntimeInput {
     pub fn from_file(path: &Path) -> Result<Self> {
         let file_content =
             fs::read_to_string(path).with_context(|| format!("Failed to read {path:?}"))?;
-        let set = HashSet::from_iter(file_content.lines().map(|x| x.to_owned()));
+        let set: HashSet<String> = file_content.lines().map(ToOwned::to_owned).collect();
         Ok(Self(set))
     }
 }

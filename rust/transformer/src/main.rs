@@ -1,5 +1,3 @@
-#![forbid(unsafe_code)]
-
 mod buildtime_input;
 mod cli;
 mod cyclonedx;
