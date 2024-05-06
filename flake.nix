@@ -88,9 +88,11 @@
             hooks = {
               nixpkgs-fmt.enable = true;
               typos.enable = true;
+              statix = {
+                enable = true;
+                settings.ignore = [ "sources.nix" ];
+              };
             };
-
-            settings.statix.ignore = [ "sources.nix" ];
           };
         };
 
