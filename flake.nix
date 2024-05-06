@@ -62,15 +62,6 @@
         inherit (bombon) transformer buildBom;
       in
       {
-        _module.args.pkgs = import inputs.nixpkgs {
-          inherit system;
-          overlays = [
-            (_final: _prev: {
-              inherit (inputs.gitignore.lib) gitignoreSource;
-            })
-          ];
-        };
-
         lib = { inherit buildBom; };
 
         packages = {
