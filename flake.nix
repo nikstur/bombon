@@ -68,6 +68,7 @@
           # This is mostly here for development
           inherit transformer;
           default = transformer;
+          sbom = buildBom transformer { };
         };
 
         checks = {
@@ -108,6 +109,7 @@
             pkgs.cargo-edit
             pkgs.cargo-bloat
             pkgs.cargo-deny
+            pkgs.cargo-cyclonedx
           ];
 
           inputsFrom = [ transformer ];

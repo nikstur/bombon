@@ -1,11 +1,25 @@
-{ pkgs }: rec {
+{ pkgs }:
 
-  transformer = pkgs.callPackage ./nix/packages/transformer.nix { };
+let
+  passthruVendoredSbom = import ./nix/passthru-vendored.nix;
+  transformerWithoutSbom = pkgs.callPackage ./nix/packages/transformer.nix { };
+in
+rec {
 
-  buildBom = pkgs.callPackage ./nix/build-bom.nix {
-    inherit transformer;
+  # It's useful to have these exposed for debugging. However, they are not a
+  # public interface.
+  __internal = {
     buildtimeDependencies = pkgs.callPackage ./nix/buildtime-dependencies.nix { };
     runtimeDependencies = pkgs.callPackage ./nix/runtime-dependencies.nix { };
   };
+
+  transformer = pkgs.callPackage (passthruVendoredSbom.rust transformerWithoutSbom) { };
+
+  buildBom = pkgs.callPackage ./nix/build-bom.nix {
+    inherit transformer;
+    inherit (__internal) buildtimeDependencies runtimeDependencies;
+  };
+
+  inherit passthruVendoredSbom;
 
 }

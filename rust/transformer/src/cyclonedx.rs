@@ -1,7 +1,9 @@
+use std::convert::Into;
+use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use cyclonedx_bom::external_models::normalized_string::NormalizedString;
 use cyclonedx_bom::external_models::uri::Purl;
 use cyclonedx_bom::models::bom::{Bom, UrnUuid};
@@ -23,10 +25,17 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub struct CycloneDXBom(Bom);
 
 impl CycloneDXBom {
+    /// Serialize to JSON as bytes.
     pub fn serialize(self) -> Result<Vec<u8>> {
         let mut output = Vec::<u8>::new();
         self.0.output_as_json_v1_4(&mut output)?;
         Ok(output)
+    }
+
+    /// Read a `CycloneDXBom` from a path.
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
+        let file = fs::File::open(path)?;
+        Ok(Self(Bom::parse_from_json(file)?))
     }
 
     pub fn build(target: Derivation, components: CycloneDXComponents, output: &Path) -> Self {
@@ -38,6 +47,10 @@ impl CycloneDXBom {
             serial_number: Some(derive_serial_number(output.as_os_str().as_encoded_bytes())),
             ..Bom::default()
         })
+    }
+
+    fn components(self) -> Option<Components> {
+        self.0.components
     }
 }
 
@@ -67,6 +80,20 @@ impl CycloneDXComponents {
                 .map(CycloneDXComponent::into)
                 .collect(),
         ))
+    }
+
+    /// Extend the `Components` with components read from multiple BOMs inside a directory.
+    pub fn extend_from_directory(&mut self, path: impl AsRef<Path>) -> Result<()> {
+        for entry in fs::read_dir(&path)
+            .with_context(|| format!("Failed to read {:?}", path.as_ref()))?
+            .flatten()
+        {
+            let bom = CycloneDXBom::from_file(entry.path())?;
+            if let Some(component) = bom.components() {
+                self.0 .0.extend(component.0);
+            }
+        }
+        Ok(())
     }
 }
 
