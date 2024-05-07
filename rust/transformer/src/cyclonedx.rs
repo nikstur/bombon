@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::Result;
 use cyclonedx_bom::external_models::uri::Purl;
 use cyclonedx_bom::models::bom::{Bom, UrnUuid};
-use cyclonedx_bom::models::component::{Classification, Component, Components};
+use cyclonedx_bom::models::component::{Classification, Component, Components, Scope};
 use cyclonedx_bom::models::external_reference::{
     ExternalReference, ExternalReferenceType, ExternalReferences,
 };
@@ -95,6 +95,7 @@ impl CycloneDXComponent {
                     .to_string(),
             ),
         );
+        component.scope = Some(Scope::Required);
         component.purl = Purl::new("nix", &name, &version).ok();
         if let Some(meta) = derivation.meta {
             component.licenses = convert_licenses(&meta);
