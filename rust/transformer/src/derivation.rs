@@ -11,7 +11,10 @@ pub struct Derivation {
 }
 
 impl Derivation {
-    pub fn new(store_path: &str) -> Self {
+    /// Create a `Derivation` from a store path.
+    ///
+    /// This can be used if we don't have any information besides the path itself.
+    pub fn from_store_path(store_path: &str) -> Self {
         // Because we only have the store path we have to derive the name from it
         let name = store_path.strip_prefix("/nix/store/").map(|s| {
             let mut split = s.split('-');

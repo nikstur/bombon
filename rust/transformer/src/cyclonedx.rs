@@ -55,7 +55,7 @@ fn derive_serial_number(data: &[u8]) -> UrnUuid {
 pub struct CycloneDXComponents(Components);
 
 impl CycloneDXComponents {
-    pub fn new(derivations: impl IntoIterator<Item = Derivation>) -> Self {
+    pub fn from_derivations(derivations: impl IntoIterator<Item = Derivation>) -> Self {
         Self(Components(
             derivations
                 .into_iter()

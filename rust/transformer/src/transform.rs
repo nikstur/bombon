@@ -33,7 +33,7 @@ pub fn transform(
             .0
             .get(store_path)
             .map(ToOwned::to_owned)
-            .unwrap_or(Derivation::new(store_path))
+            .unwrap_or(Derivation::from_store_path(store_path))
     });
 
     let buildtime_derivations = buildtime_input
@@ -45,9 +45,9 @@ pub fn transform(
 
     let components = if include_buildtime_dependencies {
         let all_derivations = runtime_derivations.chain(buildtime_derivations);
-        CycloneDXComponents::new(all_derivations)
+        CycloneDXComponents::from_derivations(all_derivations)
     } else {
-        CycloneDXComponents::new(runtime_derivations)
+        CycloneDXComponents::from_derivations(runtime_derivations)
     };
 
     let bom = CycloneDXBom::build(target_derivation, components, output);
