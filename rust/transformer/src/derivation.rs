@@ -34,6 +34,7 @@ impl Derivation {
 pub struct Meta {
     pub license: Option<LicenseField>,
     pub homepage: Option<String>,
+    pub description: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Debug)]

@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use anyhow::Result;
+use cyclonedx_bom::external_models::normalized_string::NormalizedString;
 use cyclonedx_bom::external_models::uri::Purl;
 use cyclonedx_bom::models::bom::{Bom, UrnUuid};
 use cyclonedx_bom::models::component::{Classification, Component, Components, Scope};
@@ -100,6 +101,7 @@ impl CycloneDXComponent {
         if let Some(meta) = derivation.meta {
             component.licenses = convert_licenses(&meta);
             component.external_references = convert_homepage(&meta).map(ExternalReferences);
+            component.description = meta.description.map(|s| NormalizedString::new(&s));
         }
         Self(component)
     }
