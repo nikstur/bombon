@@ -18,6 +18,7 @@ runCommand "${drv.name}.cdx.json" { buildInputs = [ transformer ]; } ''
   bombon-transformer ${drv} \
     ${toString flags} \
     ${buildtimeDependencies drv extraPaths} \
-    ${runtimeDependencies drv extraPaths} > $out
+    ${runtimeDependencies drv extraPaths} \
+    $out
 ''
 
