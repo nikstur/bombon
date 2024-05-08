@@ -19,6 +19,9 @@ pub struct Cli {
 
     /// Path to a newline separated .txt file containing the runtime input
     runtime_input: PathBuf,
+
+    /// Path to write the SBOM to
+    output: PathBuf,
 }
 
 impl Cli {
@@ -28,6 +31,7 @@ impl Cli {
             &self.target,
             &self.buildtime_input,
             &self.runtime_input,
+            &self.output,
         )
     }
 }

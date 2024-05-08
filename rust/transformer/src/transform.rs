@@ -1,4 +1,5 @@
-use std::io::{self, Write};
+use std::fs::File;
+use std::io::Write;
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -14,6 +15,7 @@ pub fn transform(
     target_path: &str,
     buildtime_input_path: &Path,
     runtime_input_path: &Path,
+    output: &Path,
 ) -> Result<()> {
     let mut buildtime_input = BuildtimeInput::from_file(buildtime_input_path)?;
     let target_derivation = buildtime_input.0.remove(target_path).with_context(|| {
@@ -48,8 +50,10 @@ pub fn transform(
         CycloneDXComponents::new(runtime_derivations)
     };
 
-    let bom = CycloneDXBom::build(target_derivation, components);
-    io::stdout().write_all(&bom.serialize()?)?;
+    let bom = CycloneDXBom::build(target_derivation, components, output);
+    let mut file =
+        File::create(output).with_context(|| format!("Failed to create file {output:?}"))?;
+    file.write_all(&bom.serialize()?)?;
 
     Ok(())
 }

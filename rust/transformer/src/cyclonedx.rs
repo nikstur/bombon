@@ -1,6 +1,8 @@
+use std::path::Path;
+
 use anyhow::Result;
 use cyclonedx_bom::external_models::uri::Purl;
-use cyclonedx_bom::models::bom::Bom;
+use cyclonedx_bom::models::bom::{Bom, UrnUuid};
 use cyclonedx_bom::models::component::{Classification, Component, Components};
 use cyclonedx_bom::models::external_reference::{
     ExternalReference, ExternalReferenceType, ExternalReferences,
@@ -8,6 +10,7 @@ use cyclonedx_bom::models::external_reference::{
 use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
 use cyclonedx_bom::models::metadata::Metadata;
 use cyclonedx_bom::models::tool::{Tool, Tools};
+use sha2::{Digest, Sha256};
 
 use crate::derivation::{self, Derivation, Meta};
 
@@ -22,13 +25,31 @@ impl CycloneDXBom {
         Ok(output)
     }
 
-    pub fn build(target: Derivation, components: CycloneDXComponents) -> Self {
+    pub fn build(target: Derivation, components: CycloneDXComponents, output: &Path) -> Self {
         Self(Bom {
             components: Some(components.into()),
             metadata: Some(metadata_from_derivation(target)),
+            // Derive a reproducible serial number from the output path. This works because the Nix
+            // outPath of the derivation is input addressed and thus reproducible.
+            serial_number: Some(derive_serial_number(output.as_os_str().as_encoded_bytes())),
             ..Bom::default()
         })
     }
+}
+
+/// Derive a serial number from some arbitrary data.
+///
+/// This data is hashed with SHA256 and the first 16 bytes are used to create a UUID to serve as a
+/// serial number.
+fn derive_serial_number(data: &[u8]) -> UrnUuid {
+    let hash = Sha256::digest(data);
+    let array: [u8; 32] = hash.into();
+    #[allow(clippy::expect_used)]
+    let bytes = array[..16]
+        .try_into()
+        .expect("Failed to extract 16 bytes from SHA256 hash");
+    let uuid = uuid::Builder::from_bytes(bytes).into_uuid();
+    UrnUuid::from(uuid)
 }
 
 pub struct CycloneDXComponents(Components);

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use crate::derivation::Derivation;
 
 #[derive(Clone)]
-pub struct BuildtimeInput(pub HashMap<String, Derivation>);
+pub struct BuildtimeInput(pub BTreeMap<String, Derivation>);
 
 impl BuildtimeInput {
     pub fn from_file(path: &Path) -> Result<Self> {
@@ -15,7 +15,7 @@ impl BuildtimeInput {
             fs::File::open(path).with_context(|| format!("Failed to open {path:?}"))?,
         )
         .context("Failed to parse buildtime input")?;
-        let mut m = HashMap::new();
+        let mut m = BTreeMap::new();
         for derivation in buildtime_input_json {
             m.insert(derivation.path.clone(), derivation);
         }
