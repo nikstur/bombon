@@ -41,10 +41,20 @@ let
   optionalGetAttrs = names: attrs:
     lib.genAttrs (builtins.filter (x: lib.hasAttr x attrs) names) (name: attrs.${name});
 
-  # Retrieves only the required fields from a derivation and renames outPath so that
-  # builtins.toJSON actually emits JSON and not only the nix store path
+  # Retrieve only the required fields from a derivation.
+  #
+  # Also renames outPath so that builtins.toJSON actually emits JSON and not
+  # only the nix store path.
   fields = drv:
-    (optionalGetAttrs [ "name" "pname" "version" "meta" ] drv) // { path = drv.outPath; };
+    (optionalGetAttrs [ "name" "pname" "version" "meta" ] drv) // {
+      path = drv.outPath;
+    } // lib.optionalAttrs (drv ? src && drv.src ? url) {
+      src = {
+        inherit (drv.src) url;
+      } // lib.optionalAttrs (drv.src ? outputHash) {
+        hash = drv.src.outputHash;
+      };
+    };
 
 in
 

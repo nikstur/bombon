@@ -8,6 +8,7 @@ pub struct Derivation {
     pub pname: Option<String>,
     pub version: Option<String>,
     pub meta: Option<Meta>,
+    pub src: Option<Src>,
 }
 
 impl Derivation {
@@ -67,4 +68,10 @@ pub struct License {
     pub full_name: String,
     #[serde(rename = "spdxId")]
     pub spdx_id: Option<String>,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct Src {
+    pub url: String,
+    pub hash: Option<String>,
 }
