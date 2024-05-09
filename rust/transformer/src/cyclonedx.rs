@@ -1,18 +1,22 @@
 use std::path::Path;
+use std::str::FromStr;
 
 use anyhow::Result;
+use cyclonedx_bom::external_models::normalized_string::NormalizedString;
 use cyclonedx_bom::external_models::uri::Purl;
 use cyclonedx_bom::models::bom::{Bom, UrnUuid};
-use cyclonedx_bom::models::component::{Classification, Component, Components};
+use cyclonedx_bom::models::component::{Classification, Component, Components, Scope};
 use cyclonedx_bom::models::external_reference::{
     ExternalReference, ExternalReferenceType, ExternalReferences,
 };
+use cyclonedx_bom::models::hash::{Hash, HashAlgorithm, HashValue, Hashes};
 use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
 use cyclonedx_bom::models::metadata::Metadata;
 use cyclonedx_bom::models::tool::{Tool, Tools};
 use sha2::{Digest, Sha256};
 
-use crate::derivation::{self, Derivation, Meta};
+use crate::derivation::{self, Derivation, Meta, Src};
+use crate::hash::{self, SriHash};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -55,7 +59,7 @@ fn derive_serial_number(data: &[u8]) -> UrnUuid {
 pub struct CycloneDXComponents(Components);
 
 impl CycloneDXComponents {
-    pub fn new(derivations: impl IntoIterator<Item = Derivation>) -> Self {
+    pub fn from_derivations(derivations: impl IntoIterator<Item = Derivation>) -> Self {
         Self(Components(
             derivations
                 .into_iter()
@@ -95,11 +99,26 @@ impl CycloneDXComponent {
                     .to_string(),
             ),
         );
+        component.scope = Some(Scope::Required);
         component.purl = Purl::new("nix", &name, &version).ok();
+
+        let mut external_references = Vec::new();
+
+        if let Some(src) = derivation.src {
+            external_references.extend(convert_src(&src));
+        }
         if let Some(meta) = derivation.meta {
             component.licenses = convert_licenses(&meta);
-            component.external_references = convert_homepage(&meta).map(ExternalReferences);
+            component.description = meta.description.map(|s| NormalizedString::new(&s));
+            if let Some(homepage) = meta.homepage {
+                external_references.extend(convert_homepage(&homepage));
+            }
         }
+
+        if !external_references.is_empty() {
+            component.external_references = Some(ExternalReferences(external_references));
+        }
+
         Self(component)
     }
 }
@@ -122,6 +141,36 @@ fn convert_licenses(meta: &Meta) -> Option<Licenses> {
     }))
 }
 
+fn convert_src(src: &Src) -> Option<ExternalReference> {
+    Some(ExternalReference {
+        external_reference_type: ExternalReferenceType::Vcs,
+        url: src.url.clone().try_into().ok()?,
+        comment: None,
+        hashes: src.hash.clone().and_then(|s| convert_hash(&s)),
+    })
+}
+
+impl From<hash::Algorithm> for HashAlgorithm {
+    fn from(value: hash::Algorithm) -> Self {
+        match value {
+            hash::Algorithm::Md5 => HashAlgorithm::MD5,
+            hash::Algorithm::Sha1 => HashAlgorithm::SHA1,
+            hash::Algorithm::Sha256 => HashAlgorithm::SHA256,
+            hash::Algorithm::Sha512 => HashAlgorithm::SHA512,
+        }
+    }
+}
+
+fn convert_hash(s: &str) -> Option<Hashes> {
+    // If it's not an SRI hash, we'll return None
+    let sri_hash = SriHash::from_str(s).ok()?;
+    let hash = Hash {
+        content: HashValue(sri_hash.hex_digest()),
+        alg: sri_hash.algorithm.into(),
+    };
+    Some(Hashes(vec![hash]))
+}
+
 fn convert_license(license: derivation::License) -> LicenseChoice {
     match license.spdx_id {
         Some(spdx_id) => match License::license_id(&spdx_id) {
@@ -132,19 +181,13 @@ fn convert_license(license: derivation::License) -> LicenseChoice {
     }
 }
 
-fn convert_homepage(meta: &Meta) -> Option<Vec<ExternalReference>> {
-    match &meta.homepage {
-        Some(homepage) => Some(vec![ExternalReference {
-            external_reference_type: ExternalReferenceType::Website,
-            url: match homepage.to_owned().try_into() {
-                Ok(uri) => uri,
-                _ => return None,
-            },
-            comment: None,
-            hashes: None,
-        }]),
-        _ => None,
-    }
+fn convert_homepage(homepage: &str) -> Option<ExternalReference> {
+    Some(ExternalReference {
+        external_reference_type: ExternalReferenceType::Website,
+        url: homepage.to_owned().try_into().ok()?,
+        comment: None,
+        hashes: None,
+    })
 }
 
 fn metadata_from_derivation(derivation: Derivation) -> Metadata {

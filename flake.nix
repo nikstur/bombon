@@ -104,6 +104,10 @@
           packages = [
             pkgs.clippy
             pkgs.rustfmt
+            pkgs.cargo-machete
+            pkgs.cargo-edit
+            pkgs.cargo-bloat
+            pkgs.cargo-deny
           ];
 
           inputsFrom = [ transformer ];
