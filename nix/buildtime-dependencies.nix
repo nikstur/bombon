@@ -6,19 +6,27 @@
 
 let
 
+  # Find the outputs of a derivation.
+  #
+  # Returns a list of all derivations that correspond to an output of the input
+  # derivation.
   drvOutputs = drv:
     if builtins.hasAttr "outputs" drv
     then map (output: drv.${output}) drv.outputs
     else [ drv ];
 
-  # Recurse into the derivation attributes to find new derivations
-  drvDeps = lib.mapAttrsToList
+  # Find the dependencies of a derivation via it's `drvAttrs`.
+  #
+  # Returns a list of all dependencies.
+  drvDeps = drv: lib.mapAttrsToList
     (k: v:
-      if lib.isDerivation v then (drvOutputs v)
-      else if lib.isList v
-      then lib.concatMap drvOutputs (lib.filter lib.isDerivation v)
+      if lib.isDerivation v then
+        (drvOutputs v)
+      else if lib.isList v then
+        lib.concatMap drvOutputs (lib.filter lib.isDerivation v)
       else [ ]
-    );
+    )
+    drv.drvAttrs;
 
   wrap = drv: { key = drv.outPath; inherit drv; };
 
@@ -34,10 +42,10 @@ let
   # All outputs are included because they have different outPaths
   buildtimeDerivations = drv0: builtins.genericClosure {
     startSet = map wrap (drvOutputs drv0);
-    operator = obj: map wrap (lib.concatLists (drvDeps obj.drv.drvAttrs));
+    operator = item: map wrap (lib.concatLists (drvDeps item.drv));
   };
 
-  # Works like lib.getAttrs but omits attrs that do not exist
+  # Like lib.getAttrs but omit attrs that do not exist.
   optionalGetAttrs = names: attrs:
     lib.genAttrs (builtins.filter (x: lib.hasAttr x attrs) names) (name: attrs.${name});
 
@@ -54,6 +62,8 @@ let
       } // lib.optionalAttrs (drv.src ? outputHash) {
         hash = drv.src.outputHash;
       };
+    } // lib.optionalAttrs (drv ? bombonVendoredSbom) {
+      vendored_sbom = drv.bombonVendoredSbom.outPath;
     };
 
 in
@@ -69,7 +79,7 @@ let
   unformattedJson = writeText
     "${drv.name}-unformatted-buildtime-dependencies.json"
     (builtins.toJSON
-      (map (obj: (fields obj.drv)) allBuildtimeDerivations)
+      (map (item: (fields item.drv)) allBuildtimeDerivations)
     );
 
 in

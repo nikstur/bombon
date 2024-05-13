@@ -43,12 +43,27 @@ pub fn transform(
         .filter(|derivation| !runtime_input.0.contains(&derivation.path))
         .unique_by(|d| d.name.clone().unwrap_or(d.path.clone()));
 
-    let components = if include_buildtime_dependencies {
+    let mut components = if include_buildtime_dependencies {
         let all_derivations = runtime_derivations.chain(buildtime_derivations);
         CycloneDXComponents::from_derivations(all_derivations)
     } else {
         CycloneDXComponents::from_derivations(runtime_derivations)
     };
+
+    // Augment the components with those retrieved from the `sbom` passthru attribute of the
+    // derivations.
+    //
+    // We have to explicitly handle the target derivation since we removed it from the components
+    // previously.
+    if let Some(sbom_path) = &target_derivation.vendored_sbom {
+        components.extend_from_directory(sbom_path)?;
+    }
+
+    for derivation in buildtime_input.0.values() {
+        if let Some(sbom_path) = &derivation.vendored_sbom {
+            components.extend_from_directory(sbom_path)?;
+        }
+    }
 
     let bom = CycloneDXBom::build(target_derivation, components, output);
     let mut file =

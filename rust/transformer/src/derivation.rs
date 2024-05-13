@@ -9,6 +9,7 @@ pub struct Derivation {
     pub version: Option<String>,
     pub meta: Option<Meta>,
     pub src: Option<Src>,
+    pub vendored_sbom: Option<String>,
 }
 
 impl Derivation {
