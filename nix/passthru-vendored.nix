@@ -18,7 +18,7 @@
           '';
           installPhase = ''
             mkdir -p $out
-            find . -name "*.cdx.json" -exec install {} $out/{} \;
+            find . -name "*.cdx.json" -execdir install {} $out/{} \;
           '';
         });
       };
