@@ -11,6 +11,7 @@
       passthru = (previousAttrs.passthru or { }) // {
         bombonVendoredSbom = package.overrideAttrs (previousAttrs: {
           nativeBuildInputs = (previousAttrs.nativeBuildInputs or [ ]) ++ [ cargo-cyclonedx ];
+          outputs = [ "out" ];
           phases = [ "unpackPhase" "patchPhase" "buildPhase" "installPhase" ];
           buildPhase = ''
             cargo cyclonedx --spec-version 1.4 --format json
