@@ -5,11 +5,11 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use cyclonedx_bom::external_models::normalized_string::NormalizedString;
-use cyclonedx_bom::external_models::uri::Purl;
+use cyclonedx_bom::external_models::uri::{Purl, Uri};
 use cyclonedx_bom::models::bom::{Bom, UrnUuid};
 use cyclonedx_bom::models::component::{Classification, Component, Components, Scope};
 use cyclonedx_bom::models::external_reference::{
-    ExternalReference, ExternalReferenceType, ExternalReferences,
+    self, ExternalReference, ExternalReferenceType, ExternalReferences,
 };
 use cyclonedx_bom::models::hash::{Hash, HashAlgorithm, HashValue, Hashes};
 use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
@@ -132,13 +132,13 @@ impl CycloneDXComponent {
         let mut external_references = Vec::new();
 
         if let Some(src) = derivation.src {
-            external_references.extend(convert_src(&src));
+            external_references.push(convert_src(&src));
         }
         if let Some(meta) = derivation.meta {
             component.licenses = convert_licenses(&meta);
             component.description = meta.description.map(|s| NormalizedString::new(&s));
             if let Some(homepage) = meta.homepage {
-                external_references.extend(convert_homepage(&homepage));
+                external_references.push(convert_homepage(&homepage));
             }
         }
 
@@ -156,6 +156,10 @@ impl From<CycloneDXComponent> for Component {
     }
 }
 
+fn string_to_url(s: &str) -> external_reference::Uri {
+    external_reference::Uri::Url(Uri::new(s))
+}
+
 fn convert_licenses(meta: &Meta) -> Option<Licenses> {
     Some(Licenses(match &meta.license {
         Some(license) => license
@@ -168,13 +172,13 @@ fn convert_licenses(meta: &Meta) -> Option<Licenses> {
     }))
 }
 
-fn convert_src(src: &Src) -> Option<ExternalReference> {
-    Some(ExternalReference {
+fn convert_src(src: &Src) -> ExternalReference {
+    ExternalReference {
         external_reference_type: ExternalReferenceType::Vcs,
-        url: src.url.clone().try_into().ok()?,
+        url: string_to_url(&src.url),
         comment: None,
         hashes: src.hash.clone().and_then(|s| convert_hash(&s)),
-    })
+    }
 }
 
 impl From<hash::Algorithm> for HashAlgorithm {
@@ -182,8 +186,8 @@ impl From<hash::Algorithm> for HashAlgorithm {
         match value {
             hash::Algorithm::Md5 => HashAlgorithm::MD5,
             hash::Algorithm::Sha1 => HashAlgorithm::SHA1,
-            hash::Algorithm::Sha256 => HashAlgorithm::SHA256,
-            hash::Algorithm::Sha512 => HashAlgorithm::SHA512,
+            hash::Algorithm::Sha256 => HashAlgorithm::SHA_256,
+            hash::Algorithm::Sha512 => HashAlgorithm::SHA_512,
         }
     }
 }
@@ -200,32 +204,30 @@ fn convert_hash(s: &str) -> Option<Hashes> {
 
 fn convert_license(license: derivation::License) -> LicenseChoice {
     match license.spdx_id {
-        Some(spdx_id) => match License::license_id(&spdx_id) {
-            Ok(license) => LicenseChoice::License(license),
-            Err(_) => LicenseChoice::License(License::named_license(&license.full_name)),
-        },
+        Some(spdx_id) => LicenseChoice::License(License::license_id(&spdx_id)),
         None => LicenseChoice::License(License::named_license(&license.full_name)),
     }
 }
 
-fn convert_homepage(homepage: &str) -> Option<ExternalReference> {
-    Some(ExternalReference {
+fn convert_homepage(homepage: &str) -> ExternalReference {
+    ExternalReference {
         external_reference_type: ExternalReferenceType::Website,
-        url: homepage.to_owned().try_into().ok()?,
+        url: string_to_url(homepage),
         comment: None,
         hashes: None,
-    })
+    }
 }
 
 fn metadata_from_derivation(derivation: Derivation) -> Metadata {
     Metadata {
         timestamp: None,
-        tools: Some(Tools(vec![Tool::new("nikstur", "bombon", VERSION)])),
+        tools: Some(Tools::List(vec![Tool::new("nikstur", "bombon", VERSION)])),
         authors: None,
         component: Some(CycloneDXComponent::from_derivation(derivation).into()),
         manufacture: None,
         supplier: None,
         licenses: None,
         properties: None,
+        lifecycles: None,
     }
 }
