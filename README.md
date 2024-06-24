@@ -76,6 +76,12 @@ You can use the `passthruVendoredSbom.rust` function to add the
 myPackageWithSbom = pkgs.callPackage (bombon.passthruVendoredSbom.rust myPackage) { };
 ```
 
+Or using Flakes:
+
+```nix
+myPackageWithSbom = pkgs.callPackage (bombon.lib.${system}.passthruVendoredSbom.rust myPackage) { };
+```
+
 An SBOM built from this new derivation will now include the vendored dependencies.
 
 ## Options

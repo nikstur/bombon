@@ -58,10 +58,10 @@
     perSystem = { config, system, pkgs, lib, ... }:
       let
         bombon = import ./. { inherit pkgs; };
-        inherit (bombon) transformer buildBom;
+        inherit (bombon) transformer buildBom passthruVendoredSbom;
       in
       {
-        lib = { inherit buildBom; };
+        lib = { inherit buildBom passthruVendoredSbom; };
 
         packages = {
           # This is mostly here for development
