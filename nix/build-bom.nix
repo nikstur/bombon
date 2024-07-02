@@ -14,7 +14,7 @@ let
     "--include-buildtime-dependencies"
   ];
 in
-runCommand "${drv.name}.cdx.json" { buildInputs = [ transformer ]; } ''
+runCommand "${drv.name}.cdx.json" { nativeBuildInputs = [ transformer ]; } ''
   bombon-transformer ${drv} \
     ${toString flags} \
     ${buildtimeDependencies drv extraPaths} \
