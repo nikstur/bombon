@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::convert::Into;
 use std::fs;
 use std::path::Path;
@@ -84,15 +85,35 @@ impl CycloneDXComponents {
 
     /// Extend the `Components` with components read from multiple BOMs inside a directory.
     pub fn extend_from_directory(&mut self, path: impl AsRef<Path>) -> Result<()> {
+        let mut m = BTreeMap::new();
+
+        // Insert the components from the original SBOM
+        for component in self.0 .0.clone() {
+            let key = component
+                .bom_ref
+                .clone()
+                .unwrap_or_else(|| component.name.to_string());
+            m.entry(key).or_insert(component);
+        }
+
+        // Add the components from the vendored SBOMs
         for entry in fs::read_dir(&path)
             .with_context(|| format!("Failed to read {:?}", path.as_ref()))?
             .flatten()
         {
             let bom = CycloneDXBom::from_file(entry.path())?;
-            if let Some(component) = bom.components() {
-                self.0 .0.extend(component.0);
+            if let Some(components) = bom.components() {
+                for component in components.0 {
+                    let key = component
+                        .bom_ref
+                        .clone()
+                        .unwrap_or_else(|| component.name.to_string());
+                    m.entry(key).or_insert(component);
+                }
             }
         }
+
+        self.0 .0 = m.into_values().collect();
         Ok(())
     }
 }
