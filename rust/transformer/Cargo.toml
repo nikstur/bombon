@@ -4,15 +4,15 @@ version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.83"
-clap = { version = "4.5.4", default-features = false, features = ["std", "derive"] }
+anyhow = "1.0.86"
+clap = { version = "4.5.9", default-features = false, features = ["std", "derive"] }
 cyclonedx-bom = "0.6.1"
 itertools = "0.13.0"
-serde = { version = "1.0.201", features = [ "derive" ] }
-serde_json = "1.0.117"
+serde = { version = "1.0.204", features = [ "derive" ] }
+serde_json = "1.0.120"
 sha2 = "0.10.8"
-uuid = "1.8.0"
-base64 = "0.22.0"
+uuid = "1.10.0"
+base64 = "0.22.1"
 
 [lints.rust]
 unsafe_code = "forbid"
