@@ -1,8 +1,11 @@
 { pkgs
 , buildBom
+, passthruVendoredSbom
 }:
 
 let
+  rustPassthru = pkg: pkgs.callPackage (passthruVendoredSbom.rust pkg) { };
+
   buildtimeOptions = { includeBuildtimeDependencies = true; };
 
   # This list cannot grow indefinitely because building a Bom requires all
@@ -24,6 +27,9 @@ let
 
     { name = "git-extra-paths"; drv = git; options = { extraPaths = [ poetry ]; }; }
     { name = "git-extra-paths-buildtime"; drv = git; options = buildtimeOptions // { extraPaths = [ poetry ]; }; }
+
+    { name = "cloud-hypervisor"; drv = rustPassthru cloud-hypervisor; options = { }; }
+    { name = "cloud-hypervisor"; drv = rustPassthru cloud-hypervisor; options = buildtimeOptions; }
   ];
 
   cycloneDxSpec = pkgs.fetchFromGitHub {

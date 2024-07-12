@@ -79,7 +79,7 @@
             nativeCheckInputs = (previousAttrs.nativeCheckInputs or [ ]) ++ [ pkgs.rustfmt ];
             checkPhase = "cargo fmt --check";
           });
-        } // import ./nix/tests { inherit pkgs buildBom; };
+        } // import ./nix/tests { inherit pkgs buildBom passthruVendoredSbom; };
 
         pre-commit = {
           check.enable = true;
