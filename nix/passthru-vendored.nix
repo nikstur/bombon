@@ -20,6 +20,7 @@
             mkdir -p $out
             find . -name "*.cdx.json" -execdir install {} $out/{} \;
           '';
+          separateDebugInfo = false;
         });
       };
     });
