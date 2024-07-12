@@ -22,3 +22,4 @@ all = { level = "deny" }
 pedantic = { level = "deny" }
 unwrap_used = { level = "deny" }
 expect_used = { level = "deny" }
+lint_groups_priority = { level = "allow", priority = 1 } # https://github.com/rust-lang/rust-clippy/issues/12270
