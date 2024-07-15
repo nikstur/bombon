@@ -73,13 +73,13 @@ You can use the `passthruVendoredSbom.rust` function to add the
 `bombonVendoredSbom` passthru derivation to a Rust package:
 
 ```nix
-myPackageWithSbom = pkgs.callPackage (bombon.passthruVendoredSbom.rust myPackage) { };
+myPackageWithSbom = bombon.passthruVendoredSbom.rust myPackage { inherit pkgs; };
 ```
 
 Or using Flakes:
 
 ```nix
-myPackageWithSbom = pkgs.callPackage (bombon.lib.${system}.passthruVendoredSbom.rust myPackage) { };
+myPackageWithSbom = bombon.lib.${system}.passthruVendoredSbom.rust myPackage { inherit pkgs; };
 ```
 
 An SBOM built from this new derivation will now include the vendored dependencies.

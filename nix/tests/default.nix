@@ -4,7 +4,7 @@
 }:
 
 let
-  rustPassthru = pkg: pkgs.callPackage (passthruVendoredSbom.rust pkg) { };
+  rustPassthru = pkg: passthruVendoredSbom.rust pkg { inherit pkgs; };
 
   buildtimeOptions = { includeBuildtimeDependencies = true; };
 
