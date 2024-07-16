@@ -14,13 +14,13 @@
           outputs = [ "out" ];
           phases = [ "unpackPhase" "patchPhase" "configurePhase" "buildPhase" "installPhase" ];
           buildPhase = ''
-            cargo cyclonedx --spec-version 1.4 --format json --target ${pkgs.stdenv.hostPlatform.rust.rustcTarget}
+            cargo cyclonedx --spec-version 1.4 --format json --target ${pkgs.stdenv.hostPlatform.rust.rustcTarget} \
           ''
           + pkgs.lib.optionalString
-            (builtins.hasAttr "buildNoDefaultFeatures" previousAttrs)
+            (builtins.hasAttr "buildNoDefaultFeatures" previousAttrs && previousAttrs.buildNoDefaultFeatures)
             " --no-default-features"
           + pkgs.lib.optionalString
-            (builtins.hasAttr "buildFeatures" previousAttrs)
+            (builtins.hasAttr "buildFeatures" previousAttrs && builtins.length previousAttrs.buildFeatures > 0)
             (" --features " + builtins.concatStringsSep "," previousAttrs.buildFeatures)
           ;
           installPhase = ''
