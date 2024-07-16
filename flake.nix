@@ -72,10 +72,12 @@
 
         checks = {
           clippy = transformer.overrideAttrs (_: previousAttrs: {
+            pname = previousAttrs.pname + "-clippy";
             nativeCheckInputs = (previousAttrs.nativeCheckInputs or [ ]) ++ [ pkgs.clippy ];
             checkPhase = "cargo clippy";
           });
           rustfmt = transformer.overrideAttrs (_: previousAttrs: {
+            pname = previousAttrs.pname + "-rustfmt";
             nativeCheckInputs = (previousAttrs.nativeCheckInputs or [ ]) ++ [ pkgs.rustfmt ];
             checkPhase = "cargo fmt --check";
           });
@@ -102,6 +104,7 @@
           '';
 
           packages = [
+            pkgs.niv
             pkgs.clippy
             pkgs.rustfmt
             pkgs.cargo-machete

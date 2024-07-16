@@ -10,6 +10,7 @@
     (previousAttrs: {
       passthru = (previousAttrs.passthru or { }) // {
         bombonVendoredSbom = package.overrideAttrs (previousAttrs: {
+          pname = previousAttrs.pname + "-bombon-vendored-sbom";
           nativeBuildInputs = (previousAttrs.nativeBuildInputs or [ ]) ++ [ pkgs.cargo-cyclonedx ];
           outputs = [ "out" ];
           phases = [ "unpackPhase" "patchPhase" "configurePhase" "buildPhase" "installPhase" ];
