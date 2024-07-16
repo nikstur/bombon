@@ -2,7 +2,7 @@
   description = "Build a cargo project without extra checks";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     crane = {
       url = "github:ipetkov/crane";
@@ -37,7 +37,7 @@
           (craneLib.buildPackage (commonArgs // {
             cargoArtifacts = craneLib.buildDepsOnly commonArgs;
           }))
-          { inherit (pkgs) cargo-cyclonedx; };
+          { inherit pkgs; };
       in
       {
         checks = {

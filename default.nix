@@ -13,7 +13,7 @@ rec {
     runtimeDependencies = pkgs.callPackage ./nix/runtime-dependencies.nix { };
   };
 
-  transformer = pkgs.callPackage (passthruVendoredSbom.rust transformerWithoutSbom) { };
+  transformer = passthruVendoredSbom.rust transformerWithoutSbom { inherit pkgs; };
 
   buildBom = pkgs.callPackage ./nix/build-bom.nix {
     inherit transformer;

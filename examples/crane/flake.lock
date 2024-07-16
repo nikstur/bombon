@@ -11,17 +11,14 @@
         "systems": "systems"
       },
       "locked": {
-        "lastModified": 1719240263,
-        "narHash": "sha256-yn8EK7/bLkrU8DhW1jVnyGrsFGb+1ruHSrQse57PvFI=",
-        "owner": "nikstur",
-        "repo": "bombon",
-        "rev": "6faac5f6d9c78e4d9bbe6432e4c15bd15fc2d779",
-        "type": "github"
+        "lastModified": 1721118701,
+        "narHash": "sha256-xRb9S1l3Pi4mZX3cDeU4hbfPn+mcfBQpau9It/0p2lk=",
+        "path": "/home/niklas/Workspace/github/bombon",
+        "type": "path"
       },
       "original": {
-        "owner": "nikstur",
-        "repo": "bombon",
-        "type": "github"
+        "path": "/home/niklas/Workspace/github/bombon",
+        "type": "path"
       }
     },
     "crane": {
