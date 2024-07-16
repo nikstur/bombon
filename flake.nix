@@ -102,6 +102,7 @@
           '';
 
           packages = [
+            pkgs.niv
             pkgs.clippy
             pkgs.rustfmt
             pkgs.cargo-machete
