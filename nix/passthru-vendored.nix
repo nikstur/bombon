@@ -15,7 +15,7 @@
           outputs = [ "out" ];
           phases = [ "unpackPhase" "patchPhase" "configurePhase" "buildPhase" "installPhase" ];
           buildPhase = ''
-            cargo cyclonedx --spec-version 1.4 --format json --target ${pkgs.stdenv.hostPlatform.rust.rustcTarget} \
+            cargo cyclonedx --spec-version 1.4 --format json --describe binaries --target ${pkgs.stdenv.hostPlatform.rust.rustcTarget} \
           ''
           + pkgs.lib.optionalString
             (builtins.hasAttr "buildNoDefaultFeatures" previousAttrs && previousAttrs.buildNoDefaultFeatures)
@@ -26,7 +26,16 @@
           ;
           installPhase = ''
             mkdir -p $out
-            find . -name "*.cdx.json" -execdir install {} $out/{} \;
+
+            set +e
+            installed_binaries=$(cargo build --bin 2>&1 | awk '/Available binaries:/ {found=1; next} found && NF {gsub(/[[:space:]]+/, ""); print}')
+            set -e
+
+            IFS=$'\n' binaries=($installed_binaries)
+            for element in "''${binaries[@]}"
+            do
+                find . -name "''${element}_bin.cdx.json" -execdir install {} $out/{} \;
+            done
           '';
           separateDebugInfo = false;
         });
