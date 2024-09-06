@@ -15,8 +15,17 @@
     bombon.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, crane, flake-utils, bombon, ... }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      crane,
+      flake-utils,
+      bombon,
+      ...
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
@@ -33,11 +42,12 @@
           ];
         };
 
-        my-crate = bombon.lib.${system}.passthruVendoredSbom.rust
-          (craneLib.buildPackage (commonArgs // {
+        my-crate = bombon.lib.${system}.passthruVendoredSbom.rust (craneLib.buildPackage (
+          commonArgs
+          // {
             cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-          }))
-          { inherit pkgs; };
+          }
+        )) { inherit pkgs; };
       in
       {
         checks = {
@@ -55,5 +65,6 @@
           # Inherit inputs from checks.
           checks = self.checks.${system};
         };
-      });
+      }
+    );
 }

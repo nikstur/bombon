@@ -1,7 +1,8 @@
-{ lib
-, writeText
-, runCommand
-, jq
+{
+  lib,
+  writeText,
+  runCommand,
+  jq,
 }:
 
 let
@@ -10,25 +11,28 @@ let
   #
   # Returns a list of all derivations that correspond to an output of the input
   # derivation.
-  drvOutputs = drv:
-    if builtins.hasAttr "outputs" drv
-    then map (output: drv.${output}) drv.outputs
-    else [ drv ];
+  drvOutputs =
+    drv: if builtins.hasAttr "outputs" drv then map (output: drv.${output}) drv.outputs else [ drv ];
 
   # Find the dependencies of a derivation via it's `drvAttrs`.
   #
   # Returns a list of all dependencies.
-  drvDeps = drv: lib.mapAttrsToList
-    (k: v:
+  drvDeps =
+    drv:
+    lib.mapAttrsToList (
+      k: v:
       if lib.isDerivation v then
         (drvOutputs v)
       else if lib.isList v then
         lib.concatMap drvOutputs (lib.filter lib.isDerivation v)
-      else [ ]
-    )
-    drv.drvAttrs;
+      else
+        [ ]
+    ) drv.drvAttrs;
 
-  wrap = drv: { key = drv.outPath; inherit drv; };
+  wrap = drv: {
+    key = drv.outPath;
+    inherit drv;
+  };
 
   # Walk through the whole DAG of dependencies, using the `outPath` as an
   # index for the elements.
@@ -40,29 +44,42 @@ let
   #  - drv: the actual derivation object.
   #
   # All outputs are included because they have different outPaths
-  buildtimeDerivations = drv0: builtins.genericClosure {
-    startSet = map wrap (drvOutputs drv0);
-    operator = item: map wrap (lib.concatLists (drvDeps item.drv));
-  };
+  buildtimeDerivations =
+    drv0:
+    builtins.genericClosure {
+      startSet = map wrap (drvOutputs drv0);
+      operator = item: map wrap (lib.concatLists (drvDeps item.drv));
+    };
 
   # Like lib.getAttrs but omit attrs that do not exist.
-  optionalGetAttrs = names: attrs:
-    lib.genAttrs (builtins.filter (x: lib.hasAttr x attrs) names) (name: attrs.${name});
+  optionalGetAttrs =
+    names: attrs: lib.genAttrs (builtins.filter (x: lib.hasAttr x attrs) names) (name: attrs.${name});
 
   # Retrieve only the required fields from a derivation.
   #
   # Also renames outPath so that builtins.toJSON actually emits JSON and not
   # only the nix store path.
-  fields = drv:
-    (optionalGetAttrs [ "name" "pname" "version" "meta" ] drv) // {
+  fields =
+    drv:
+    (optionalGetAttrs [
+      "name"
+      "pname"
+      "version"
+      "meta"
+    ] drv)
+    // {
       path = drv.outPath;
-    } // lib.optionalAttrs (drv ? src && drv.src ? url) {
-      src = {
-        inherit (drv.src) url;
-      } // lib.optionalAttrs (drv.src ? outputHash) {
-        hash = drv.src.outputHash;
-      };
-    } // lib.optionalAttrs (drv ? bombonVendoredSbom) {
+    }
+    // lib.optionalAttrs (drv ? src && drv.src ? url) {
+      src =
+        {
+          inherit (drv.src) url;
+        }
+        // lib.optionalAttrs (drv.src ? outputHash) {
+          hash = drv.src.outputHash;
+        };
+    }
+    // lib.optionalAttrs (drv ? bombonVendoredSbom) {
       vendored_sbom = drv.bombonVendoredSbom.outPath;
     };
 
@@ -76,11 +93,9 @@ let
 
   allBuildtimeDerivations = lib.flatten (map buildtimeDerivations allDrvs);
 
-  unformattedJson = writeText
-    "${drv.name}-unformatted-buildtime-dependencies.json"
-    (builtins.toJSON
-      (map (item: (fields item.drv)) allBuildtimeDerivations)
-    );
+  unformattedJson = writeText "${drv.name}-unformatted-buildtime-dependencies.json" (
+    builtins.toJSON (map (item: (fields item.drv)) allBuildtimeDerivations)
+  );
 
 in
 
