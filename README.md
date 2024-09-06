@@ -104,6 +104,14 @@ bombon.lib.${system}.buildBom pkgs.hello {
 }
 ```
 
+`passthruVendoredSbom.rust` also accepts `includeBuildtimeDependencies` as an optional attribute.
+
+Example:
+
+```nix
+myPackageWithSbom = bombon.passthruVendoredSbom.rust myPackage { inherit pkgs; includeBuildtimeDependencies = true; };
+```
+
 ## Contributing
 
 During development, the Nix Repl is a convenient and quick way to test changes.
