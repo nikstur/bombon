@@ -1,7 +1,8 @@
 # This is a wrapper around nixpkgs' closureInfo. It returns a newline
 # separated list of the store paths of drv's runtime dependencies.
-{ runCommand
-, closureInfo
+{
+  runCommand,
+  closureInfo,
 }:
 
 drv: extraPaths:

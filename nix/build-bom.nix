@@ -1,13 +1,16 @@
-{ lib
-, runCommand
-, transformer
-, buildtimeDependencies
-, runtimeDependencies
+{
+  lib,
+  runCommand,
+  transformer,
+  buildtimeDependencies,
+  runtimeDependencies,
 }:
 
-drv: { extraPaths ? [ ]
-     , includeBuildtimeDependencies ? false
-     }:
+drv:
+{
+  extraPaths ? [ ],
+  includeBuildtimeDependencies ? false,
+}:
 
 let
   flags = lib.optionals includeBuildtimeDependencies [
@@ -21,4 +24,3 @@ runCommand "${drv.name}.cdx.json" { nativeBuildInputs = [ transformer ]; } ''
     ${runtimeDependencies drv extraPaths} \
     $out
 ''
-

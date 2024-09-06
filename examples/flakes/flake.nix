@@ -5,7 +5,12 @@
     bombon.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, bombon }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      bombon,
+    }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };

@@ -6,26 +6,39 @@
   # This could be done much more elegantly if `buildRustPackage` supported
   # finalAttrs. When https://github.com/NixOS/nixpkgs/pull/194475 lands, we can
   # most likely get rid of this.
-  rust = package: { pkgs, includeBuildtimeDependencies ? false }: package.overrideAttrs
-    (previousAttrs: {
+  rust =
+    package:
+    {
+      pkgs,
+      includeBuildtimeDependencies ? false,
+    }:
+    package.overrideAttrs (previousAttrs: {
       passthru = (previousAttrs.passthru or { }) // {
         bombonVendoredSbom = package.overrideAttrs (previousAttrs: {
           pname = previousAttrs.pname + "-bombon-vendored-sbom";
-          nativeBuildInputs = (previousAttrs.nativeBuildInputs or [ ]) ++ [ pkgs.buildPackages.cargo-cyclonedx ];
+          nativeBuildInputs = (previousAttrs.nativeBuildInputs or [ ]) ++ [
+            pkgs.buildPackages.cargo-cyclonedx
+          ];
           outputs = [ "out" ];
-          phases = [ "unpackPhase" "patchPhase" "configurePhase" "buildPhase" "installPhase" ];
+          phases = [
+            "unpackPhase"
+            "patchPhase"
+            "configurePhase"
+            "buildPhase"
+            "installPhase"
+          ];
 
-          buildPhase = ''
-            cargo cyclonedx --spec-version 1.4 --format json --describe binaries --target ${pkgs.stdenv.hostPlatform.rust.rustcTarget} \
-          ''
-          + pkgs.lib.optionalString
-            (builtins.hasAttr "buildNoDefaultFeatures" previousAttrs && previousAttrs.buildNoDefaultFeatures)
-            " --no-default-features"
-          + pkgs.lib.optionalString
-            (builtins.hasAttr "buildFeatures" previousAttrs && builtins.length previousAttrs.buildFeatures > 0)
-            (" --features " + builtins.concatStringsSep "," previousAttrs.buildFeatures)
-          + pkgs.lib.optionalString (!includeBuildtimeDependencies) " --no-build-deps"
-          ;
+          buildPhase =
+            ''
+              cargo cyclonedx --spec-version 1.4 --format json --describe binaries --target ${pkgs.stdenv.hostPlatform.rust.rustcTarget} \
+            ''
+            + pkgs.lib.optionalString (
+              builtins.hasAttr "buildNoDefaultFeatures" previousAttrs && previousAttrs.buildNoDefaultFeatures
+            ) " --no-default-features"
+            + pkgs.lib.optionalString (
+              builtins.hasAttr "buildFeatures" previousAttrs && builtins.length previousAttrs.buildFeatures > 0
+            ) (" --features " + builtins.concatStringsSep "," previousAttrs.buildFeatures)
+            + pkgs.lib.optionalString (!includeBuildtimeDependencies) " --no-build-deps";
 
           installPhase = ''
             mkdir -p $out
