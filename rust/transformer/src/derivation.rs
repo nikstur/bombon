@@ -73,6 +73,6 @@ pub struct License {
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct Src {
-    pub url: String,
+    pub url: Option<String>,
     pub hash: Option<String>,
 }
