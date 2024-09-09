@@ -153,7 +153,9 @@ impl CycloneDXComponent {
         let mut external_references = Vec::new();
 
         if let Some(src) = derivation.src {
-            external_references.push(convert_src(&src));
+            if src.url.is_some() {
+                external_references.push(convert_src(&src));
+            }
         }
         if let Some(meta) = derivation.meta {
             component.licenses = convert_licenses(&meta);
@@ -194,9 +196,13 @@ fn convert_licenses(meta: &Meta) -> Option<Licenses> {
 }
 
 fn convert_src(src: &Src) -> ExternalReference {
+    assert!(
+        src.url.is_some(),
+        "src.url must be Some to generate ExternalReference",
+    );
     ExternalReference {
         external_reference_type: ExternalReferenceType::Vcs,
-        url: string_to_url(&src.url),
+        url: string_to_url(&src.url.clone().unwrap_or_default()),
         comment: None,
         hashes: src.hash.clone().and_then(|s| convert_hash(&s)),
     }
