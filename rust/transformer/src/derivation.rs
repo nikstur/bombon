@@ -8,8 +8,9 @@ pub struct Derivation {
     pub name: Option<String>,
     pub pname: Option<String>,
     pub version: Option<String>,
-    pub output_name: Option<String>,
     pub meta: Option<Meta>,
+    pub output_name: Option<String>,
+    pub output_hash: Option<String>,
     pub src: Option<Src>,
     pub vendored_sbom: Option<String>,
 }

@@ -149,6 +149,7 @@ impl CycloneDXComponent {
         );
         component.scope = Some(Scope::Required);
         component.purl = Purl::new("nix", &name, &version).ok();
+        component.hashes = derivation.output_hash.and_then(|s| convert_hash(&s));
 
         let mut external_references = Vec::new();
 
