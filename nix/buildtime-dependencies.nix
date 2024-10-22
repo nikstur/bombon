@@ -66,6 +66,7 @@ let
       "pname"
       "version"
       "meta"
+      "outputName"
     ] drv)
     // {
       path = drv.outPath;
@@ -80,7 +81,7 @@ let
         };
     }
     // lib.optionalAttrs (drv ? bombonVendoredSbom) {
-      vendored_sbom = drv.bombonVendoredSbom.outPath;
+      vendoredSbom = drv.bombonVendoredSbom.outPath;
     };
 
 in

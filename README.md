@@ -94,6 +94,8 @@ An SBOM built from this new derivation will now include the vendored dependencie
   but you still want their contents to appear in the SBOM. The `extraPaths`
   will appear as components of the main derivation.
 - `includeBuildtimeDependencies`: boolean flag to include buildtime dependencies in output.
+- `excludes`: a list of regex patterns of store paths to exclude from the final
+  SBOM.
 
 Example:
 
@@ -101,6 +103,7 @@ Example:
 bombon.lib.${system}.buildBom pkgs.hello {
   extraPaths = [ pkgs.git ];
   includeBuildtimeDependencies = true;
+  excludes = [ "service" ];
 }
 ```
 

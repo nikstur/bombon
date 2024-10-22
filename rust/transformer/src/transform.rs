@@ -4,6 +4,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use itertools::Itertools;
+use regex::RegexSet;
 
 use crate::buildtime_input::BuildtimeInput;
 use crate::cyclonedx::{CycloneDXBom, CycloneDXComponents};
@@ -12,6 +13,7 @@ use crate::runtime_input::RuntimeInput;
 
 pub fn transform(
     include_buildtime_dependencies: bool,
+    exclude: &[String],
     target_path: &str,
     buildtime_input_path: &Path,
     runtime_input_path: &Path,
@@ -43,12 +45,26 @@ pub fn transform(
         .filter(|derivation| !runtime_input.0.contains(&derivation.path))
         .unique_by(|d| d.name.clone().unwrap_or(d.path.clone()));
 
-    let mut components = if include_buildtime_dependencies {
-        let all_derivations = runtime_derivations.chain(buildtime_derivations);
-        CycloneDXComponents::from_derivations(all_derivations)
+    let all_derivations: Box<dyn Iterator<Item = Derivation>> = if include_buildtime_dependencies {
+        Box::new(runtime_derivations.chain(buildtime_derivations))
     } else {
-        CycloneDXComponents::from_derivations(runtime_derivations)
+        Box::new(runtime_derivations)
     };
+
+    let set = RegexSet::new(exclude).context("Failed to build regex set from exclude patterns")?;
+
+    let all_derivations = all_derivations
+        // Filter out all doc and man outputs.
+        .filter(|derivation| {
+            !matches!(
+                derivation.output_name.clone().unwrap_or_default().as_ref(),
+                "doc" | "man"
+            )
+        })
+        // Filter out derivations that match one of the exclude patterns.
+        .filter(|derivation| !set.is_match(&derivation.path));
+
+    let mut components = CycloneDXComponents::from_derivations(all_derivations);
 
     // Augment the components with those retrieved from the `sbom` passthru attribute of the
     // derivations.
