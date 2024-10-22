@@ -3,3 +3,5 @@
 ## 0.3.0 (unreleased)
 
 - `doc` and `man` outputs are not included in the SBOM anymore.
+- Added the option `excludes` to `buildBom` to exclude store paths via regex
+  patterns from the final SBOM.

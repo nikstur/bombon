@@ -4,6 +4,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use itertools::Itertools;
+use regex::RegexSet;
 
 use crate::buildtime_input::BuildtimeInput;
 use crate::cyclonedx::{CycloneDXBom, CycloneDXComponents};
@@ -12,6 +13,7 @@ use crate::runtime_input::RuntimeInput;
 
 pub fn transform(
     include_buildtime_dependencies: bool,
+    exclude: &[String],
     target_path: &str,
     buildtime_input_path: &Path,
     runtime_input_path: &Path,
@@ -49,13 +51,18 @@ pub fn transform(
         Box::new(runtime_derivations)
     };
 
-    // Filter out all doc and man outputs
-    let all_derivations = all_derivations.filter(|derivation| {
-        !matches!(
-            derivation.output_name.clone().unwrap_or_default().as_ref(),
-            "doc" | "man"
-        )
-    });
+    let set = RegexSet::new(exclude).context("Failed to build regex set from exclude patterns")?;
+
+    let all_derivations = all_derivations
+        // Filter out all doc and man outputs.
+        .filter(|derivation| {
+            !matches!(
+                derivation.output_name.clone().unwrap_or_default().as_ref(),
+                "doc" | "man"
+            )
+        })
+        // Filter out derivations that match one of the exclude patterns.
+        .filter(|derivation| !set.is_match(&derivation.path));
 
     let mut components = CycloneDXComponents::from_derivations(all_derivations);
 

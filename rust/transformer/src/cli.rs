@@ -11,6 +11,12 @@ pub struct Cli {
     #[arg(long)]
     include_buildtime_dependencies: bool,
 
+    /// Regex pattern of store paths to exclude from the final SBOM.
+    ///
+    /// Can be given multiple times to exclude multiple patterns.
+    #[arg(short, long)]
+    exclude: Vec<String>,
+
     /// Path to target derivation
     target: String,
 
@@ -28,6 +34,7 @@ impl Cli {
     pub fn call(self) -> Result<()> {
         transform(
             self.include_buildtime_dependencies,
+            &self.exclude,
             &self.target,
             &self.buildtime_input,
             &self.runtime_input,
