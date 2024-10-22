@@ -2,7 +2,7 @@
 
 Automagically build CycloneDX Software Bills of Materials (SBOMs) for Nix packages!
 
-Bombon generates CycloneDX v1.4 SBOMs which aim to be compliant with:
+Bombon generates CycloneDX v1.5 SBOMs which aim to be compliant with:
 
 - The German [Technical Guideline TR-03183][] of the Federal Office for Information
   Security (BSI)

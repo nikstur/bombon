@@ -29,7 +29,7 @@ impl CycloneDXBom {
     /// Serialize to JSON as bytes.
     pub fn serialize(self) -> Result<Vec<u8>> {
         let mut output = Vec::<u8>::new();
-        self.0.output_as_json_v1_4(&mut output)?;
+        self.0.output_as_json_v1_5(&mut output)?;
         Ok(output)
     }
 

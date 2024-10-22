@@ -87,19 +87,21 @@ let
     }
   ];
 
+  cycloneDxVersion = "1.5";
+
   cycloneDxSpec = pkgs.fetchFromGitHub {
     owner = "CycloneDX";
     repo = "specification";
-    rev = "1.4";
-    sha256 = "sha256-N9aEK2oYk3SoCczrRMt5ycdgXCPA5SHTKsS2CffFY14=";
+    rev = cycloneDxVersion;
+    sha256 = "sha256-bAXi7m7kWJ+lZNYnvSNmLQ6+kLqRw379crbC3viNqzY=";
   };
 
   buildBomAndValidate =
     drv: options:
     pkgs.runCommand "${drv.name}-bom-validation" { nativeBuildInputs = [ pkgs.check-jsonschema ]; } ''
       check-jsonschema \
-        --schemafile "${cycloneDxSpec}/schema/bom-1.4.schema.json" \
-        --base-uri "${cycloneDxSpec}/schema/bom-1.4.schema.json" \
+        --schemafile "${cycloneDxSpec}/schema/bom-${cycloneDxVersion}.schema.json" \
+        --base-uri "${cycloneDxSpec}/schema/bom-${cycloneDxVersion}.schema.json" \
         "${buildBom drv options}"
       touch $out
     '';
