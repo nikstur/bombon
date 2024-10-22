@@ -67,6 +67,7 @@ let
       "version"
       "meta"
       "outputName"
+      "outputHash"
     ] drv)
     // {
       path = drv.outPath;
