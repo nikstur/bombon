@@ -2,11 +2,13 @@ use itertools::Itertools;
 use serde::Deserialize;
 
 #[derive(Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct Derivation {
     pub path: String,
     pub name: Option<String>,
     pub pname: Option<String>,
     pub version: Option<String>,
+    pub output_name: Option<String>,
     pub meta: Option<Meta>,
     pub src: Option<Src>,
     pub vendored_sbom: Option<String>,

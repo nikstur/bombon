@@ -43,12 +43,21 @@ pub fn transform(
         .filter(|derivation| !runtime_input.0.contains(&derivation.path))
         .unique_by(|d| d.name.clone().unwrap_or(d.path.clone()));
 
-    let mut components = if include_buildtime_dependencies {
-        let all_derivations = runtime_derivations.chain(buildtime_derivations);
-        CycloneDXComponents::from_derivations(all_derivations)
+    let all_derivations: Box<dyn Iterator<Item = Derivation>> = if include_buildtime_dependencies {
+        Box::new(runtime_derivations.chain(buildtime_derivations))
     } else {
-        CycloneDXComponents::from_derivations(runtime_derivations)
+        Box::new(runtime_derivations)
     };
+
+    // Filter out all doc and man outputs
+    let all_derivations = all_derivations.filter(|derivation| {
+        !matches!(
+            derivation.output_name.clone().unwrap_or_default().as_ref(),
+            "doc" | "man"
+        )
+    });
+
+    let mut components = CycloneDXComponents::from_derivations(all_derivations);
 
     // Augment the components with those retrieved from the `sbom` passthru attribute of the
     // derivations.
