@@ -15,7 +15,7 @@ use cyclonedx_bom::models::external_reference::{
 use cyclonedx_bom::models::hash::{Hash, HashAlgorithm, HashValue, Hashes};
 use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
 use cyclonedx_bom::models::metadata::Metadata;
-use cyclonedx_bom::models::tool::{Tool, Tools};
+use cyclonedx_bom::models::tool::Tools;
 use sha2::{Digest, Sha256};
 
 use crate::derivation::{self, Derivation, Meta, Src};
@@ -248,7 +248,7 @@ fn convert_homepage(homepage: &str) -> ExternalReference {
 fn metadata_from_derivation(derivation: Derivation) -> Metadata {
     Metadata {
         timestamp: None,
-        tools: Some(Tools::List(vec![Tool::new("nikstur", "bombon", VERSION)])),
+        tools: Some(metadata_tools()),
         authors: None,
         component: Some(CycloneDXComponent::from_derivation(derivation).into()),
         manufacture: None,
@@ -256,5 +256,23 @@ fn metadata_from_derivation(derivation: Derivation) -> Metadata {
         licenses: None,
         properties: None,
         lifecycles: None,
+    }
+}
+
+fn metadata_tools() -> Tools {
+    let mut component = Component::new(Classification::Application, "bombon", VERSION, None);
+    component.external_references = Some(ExternalReferences(vec![convert_homepage(
+        "https://github.com/nikstur/bombon",
+    )]));
+    component.description = Some(NormalizedString::new(
+        "Nix CycloneDX Software Bills of Materials (SBOMs)",
+    ));
+    component.licenses = Some(Licenses(vec![LicenseChoice::License(License::license_id(
+        "MIT",
+    ))]));
+
+    Tools::Object {
+        services: None,
+        components: Some(Components(vec![component])),
     }
 }
