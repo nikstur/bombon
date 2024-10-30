@@ -4,13 +4,13 @@ Automagically build CycloneDX Software Bills of Materials (SBOMs) for Nix packag
 
 Bombon generates CycloneDX v1.5 SBOMs which aim to be compliant with:
 
-- The German [Technical Guideline TR-03183][] of the Federal Office for Information
+- The German [Technical Guideline TR-03183 v2.0.0][] of the Federal Office for Information
   Security (BSI)
 - The US [Executive Order 14028][]
 
 If you find that they aren't compliant in any way, please open an issue!
 
-[Technical Guideline TR-03183]: https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03183/BSI-TR-03183-2.pdf?__blob=publicationFile&v=5
+[Technical Guideline TR-03183 v2.0.0]: https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03183/BSI-TR-03183-2-2_0_0.pdf?__blob=publicationFile&v=3
 [Executive Order 14028]: https://www.nist.gov/itl/executive-order-14028-improving-nations-cybersecurity/software-security-supply-chains-software-1
 
 ## Getting Started
