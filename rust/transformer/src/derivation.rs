@@ -40,6 +40,7 @@ pub struct Meta {
     pub license: Option<LicenseField>,
     pub homepage: Option<String>,
     pub description: Option<String>,
+    pub cpe: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
