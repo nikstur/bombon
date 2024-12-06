@@ -19,13 +19,16 @@ pub fn transform(
     runtime_input_path: &Path,
     output: &Path,
 ) -> Result<()> {
-    let mut buildtime_input = BuildtimeInput::from_file(buildtime_input_path)?;
-    let target_derivation = buildtime_input.0.remove(target_path).with_context(|| {
-        format!("Buildtime input doesn't contain target derivation: {target_path}")
-    })?;
+    let buildtime_input = BuildtimeInput::from_file(buildtime_input_path)?;
+    let target_derivation = buildtime_input
+        .0
+        .get(target_path)
+        .map(ToOwned::to_owned)
+        .with_context(|| {
+            format!("Buildtime input doesn't contain target derivation: {target_path}")
+        })?;
 
-    let mut runtime_input = RuntimeInput::from_file(runtime_input_path)?;
-    runtime_input.0.remove(target_path);
+    let runtime_input = RuntimeInput::from_file(runtime_input_path)?;
 
     // Augment the runtime input with information from the buildtime input. The buildtime input,
     // however, is not a strict superset of the runtime input. This has to do with how we query the
@@ -68,13 +71,6 @@ pub fn transform(
 
     // Augment the components with those retrieved from the `sbom` passthru attribute of the
     // derivations.
-    //
-    // We have to explicitly handle the target derivation since we removed it from the components
-    // previously.
-    if let Some(sbom_path) = &target_derivation.vendored_sbom {
-        components.extend_from_directory(sbom_path)?;
-    }
-
     for derivation in buildtime_input.0.values() {
         if let Some(sbom_path) = &derivation.vendored_sbom {
             components.extend_from_directory(sbom_path)?;
