@@ -6,7 +6,7 @@
 let
   cargoToml = builtins.fromTOML (builtins.readFile ../../rust/transformer/Cargo.toml);
 in
-rustPlatform.buildRustPackage {
+rustPlatform.buildRustPackage rec {
   pname = cargoToml.package.name;
   inherit (cargoToml.package) version;
 
@@ -25,5 +25,6 @@ rustPlatform.buildRustPackage {
     license = licenses.mit;
     maintainers = with lib.maintainers; [ nikstur ];
     mainProgram = "bombon-transformer";
+    cpe = "cpe:2.3:a:nikstur:bombon-transformer:${version}:*:*:*:*:*:*:*";
   };
 }
