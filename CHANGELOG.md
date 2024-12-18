@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0 (unreleased)
+
+## Added
+
+- Added the ability to collect CPE information from a package's metadata.
+
 ## 0.3.0
 
 ### Added
