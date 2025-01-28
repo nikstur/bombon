@@ -7,7 +7,7 @@ edition = "2021"
 anyhow = "1.0.86"
 clap = { version = "4.5.17", default-features = false, features = ["std", "derive"] }
 cyclonedx-bom = "0.8.0"
-itertools = "0.13.0"
+itertools = "0.14.0"
 serde = { version = "1.0.209", features = [ "derive" ] }
 serde_json = "1.0.128"
 sha2 = "0.10.8"
