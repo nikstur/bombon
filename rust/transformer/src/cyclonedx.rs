@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use cyclonedx_bom::external_models::normalized_string::NormalizedString;
 use cyclonedx_bom::external_models::uri::{Purl, Uri};
 use cyclonedx_bom::models::bom::{Bom, UrnUuid};
-use cyclonedx_bom::models::component::{Classification, Component, Components, Scope};
+use cyclonedx_bom::models::component::{Classification, Component, Components, Cpe, Scope};
 use cyclonedx_bom::models::external_reference::{
     self, ExternalReference, ExternalReferenceType, ExternalReferences,
 };
@@ -161,6 +161,7 @@ impl CycloneDXComponent {
         if let Some(meta) = derivation.meta {
             component.licenses = convert_licenses(&meta);
             component.description = meta.description.map(|s| NormalizedString::new(&s));
+            component.cpe = meta.cpe.map(|s| Cpe::new(&s));
             if let Some(homepage) = meta.homepage {
                 external_references.push(convert_homepage(&homepage));
             }
