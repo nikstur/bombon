@@ -14,7 +14,7 @@ impl BuildtimeInput {
         let buildtime_input_json: Vec<Derivation> = serde_json::from_reader(
             fs::File::open(path).with_context(|| format!("Failed to open {path:?}"))?,
         )
-        .context("Failed to parse buildtime input")?;
+        .with_context(|| format!("Failed to parse buildtime input at {path:?}"))?;
         let mut m = BTreeMap::new();
         for derivation in buildtime_input_json {
             m.insert(derivation.path.clone(), derivation);

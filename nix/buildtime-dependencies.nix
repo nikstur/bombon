@@ -71,6 +71,7 @@ let
     ] drv)
     // {
       path = drv.outPath;
+      patches = lib.flatten (drv.patches or [ ]);
     }
     // lib.optionalAttrs (drv ? src && drv.src ? url) {
       src =
