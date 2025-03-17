@@ -7,7 +7,10 @@ use std::str::FromStr;
 use anyhow::{Context, Result};
 use cyclonedx_bom::external_models::normalized_string::NormalizedString;
 use cyclonedx_bom::external_models::uri::{Purl, Uri};
+use cyclonedx_bom::models::attached_text::AttachedText;
 use cyclonedx_bom::models::bom::{Bom, UrnUuid};
+use cyclonedx_bom::models::code::{Diff, Patch, PatchClassification, Patches};
+use cyclonedx_bom::models::component::Pedigree;
 use cyclonedx_bom::models::component::{Classification, Component, Components, Scope};
 use cyclonedx_bom::models::external_reference::{
     self, ExternalReference, ExternalReferenceType, ExternalReferences,
@@ -170,6 +173,17 @@ impl CycloneDXComponent {
             component.external_references = Some(ExternalReferences(external_references));
         }
 
+        if !derivation.patches.is_empty() {
+            component.pedigree = Some(Pedigree {
+                ancestors: None,
+                descendants: None,
+                variants: None,
+                commits: None,
+                patches: Some(convert_patches(&derivation.patches)),
+                notes: None,
+            });
+        }
+
         Self(component)
     }
 }
@@ -276,4 +290,26 @@ fn metadata_tools() -> Tools {
         services: None,
         components: Some(Components(vec![component])),
     }
+}
+
+fn convert_patches(patches: &[String]) -> Patches {
+    let cyclonedx_patches = patches
+        .iter()
+        .filter_map(|patch| fs::read_to_string(patch).ok())
+        .map(|diff| Patch {
+            // As we know nothing about the patch at this level, the safest is to assume that it's
+            // unofficial
+            patch_type: PatchClassification::Unofficial,
+            diff: Some(Diff {
+                text: Some(AttachedText {
+                    content_type: Some(NormalizedString::new("text/plain")),
+                    encoding: None,
+                    content: diff,
+                }),
+                url: None,
+            }),
+            resolves: None,
+        })
+        .collect::<Vec<_>>();
+    Patches(cyclonedx_patches)
 }

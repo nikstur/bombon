@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 (unreleased)
+
+### Added
+
+- Added the ability to extract patches from a derivation and include them in
+  the SBOM.
+
 ## 0.3.0
 
 ### Added

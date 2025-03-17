@@ -13,6 +13,7 @@ pub struct Derivation {
     pub output_hash: Option<String>,
     pub src: Option<Src>,
     pub vendored_sbom: Option<String>,
+    pub patches: Vec<String>,
 }
 
 impl Derivation {
