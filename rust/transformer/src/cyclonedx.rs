@@ -215,6 +215,11 @@ fn convert_src(src: &Src) -> ExternalReference {
         src.url.is_some(),
         "src.url must be Some to generate ExternalReference",
     );
+    println!("Sources: {src:#?}");
+    assert!(
+        !src.url.clone().unwrap().is_empty(),
+        "src.url should not be empty string in order to generate ExternalReference",
+    );
     ExternalReference {
         external_reference_type: ExternalReferenceType::Vcs,
         url: string_to_url(&src.url.clone().unwrap_or_default()),
