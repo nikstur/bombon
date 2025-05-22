@@ -85,6 +85,12 @@ let
       drv = rustPassthru cloud-hypervisor;
       options = buildtimeOptions;
     }
+
+    # resulted in empty VCS info in the past
+    { name = "kexec-tools";
+      drv = kexec-tools;
+      options = {};
+    }
   ];
 
   cycloneDxVersion = "1.5";
@@ -99,11 +105,12 @@ let
   buildBomAndValidate =
     drv: options:
     pkgs.runCommand "${drv.name}-bom-validation" { nativeBuildInputs = [ pkgs.check-jsonschema ]; } ''
+      BOM="${buildBom drv options}"
       check-jsonschema \
         --schemafile "${cycloneDxSpec}/schema/bom-${cycloneDxVersion}.schema.json" \
         --base-uri "${cycloneDxSpec}/schema/bom-${cycloneDxVersion}.schema.json" \
-        "${buildBom drv options}"
-      touch $out
+        $BOM
+      cp $BOM $out
     '';
 
   genAttrsFromDrvs =
