@@ -157,8 +157,8 @@ impl CycloneDXComponent {
         let mut external_references = Vec::new();
 
         if let Some(src) = derivation.src {
-            if src.url.is_some() {
-                external_references.push(convert_src(&src));
+            if !src.urls.is_empty() {
+                external_references.extend(convert_src(&src));
             }
         }
         if let Some(meta) = derivation.meta {
@@ -210,17 +210,24 @@ fn convert_licenses(meta: &Meta) -> Option<Licenses> {
     }))
 }
 
-fn convert_src(src: &Src) -> ExternalReference {
+fn convert_src(src: &Src) -> Vec<ExternalReference> {
     assert!(
-        src.url.is_some(),
-        "src.url must be Some to generate ExternalReference",
+        !src.urls.is_empty(),
+        "src.urls must contain at least one value to generate ExternalReference",
     );
-    ExternalReference {
-        external_reference_type: ExternalReferenceType::Vcs,
-        url: string_to_url(&src.url.clone().unwrap_or_default()),
-        comment: None,
-        hashes: src.hash.clone().and_then(|s| convert_hash(&s)),
-    }
+    assert!(
+        !src.urls.iter().any(String::is_empty),
+        "All urls in src.urls must not be empty strings to generate ExternalReference",
+    );
+    src.urls
+        .iter()
+        .map(|u| ExternalReference {
+            external_reference_type: ExternalReferenceType::Vcs,
+            url: string_to_url(u),
+            comment: None,
+            hashes: src.hash.clone().and_then(|s| convert_hash(&s)),
+        })
+        .collect()
 }
 
 impl From<hash::Algorithm> for HashAlgorithm {

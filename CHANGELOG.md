@@ -6,6 +6,12 @@
 
 - Added the ability to extract patches from a derivation and include them in
   the SBOM.
+- Added the ability to include multiple source URLs as external references.
+
+### Fixed
+
+- Fixed an issue where some components would receive an empty string as VCS
+  external reference.
 
 ## 0.3.0
 
