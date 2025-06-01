@@ -85,6 +85,13 @@ let
       drv = rustPassthru cloud-hypervisor;
       options = buildtimeOptions;
     }
+
+    # Multiple src urls
+    {
+      name = "kexec-tools";
+      drv = kexec-tools;
+      options = { };
+    }
   ];
 
   cycloneDxVersion = "1.5";

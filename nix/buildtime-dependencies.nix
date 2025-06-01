@@ -73,10 +73,10 @@ let
       path = drv.outPath;
       patches = lib.flatten (drv.patches or [ ]);
     }
-    // lib.optionalAttrs (drv ? src && drv.src ? url) {
+    // lib.optionalAttrs (drv ? src && drv.src ? urls) {
       src =
         {
-          inherit (drv.src) url;
+          inherit (drv.src) urls;
         }
         // lib.optionalAttrs (drv.src ? outputHash) {
           hash = drv.src.outputHash;
