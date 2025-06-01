@@ -30,7 +30,11 @@
 
           buildPhase =
             ''
-              cargo cyclonedx --spec-version 1.4 --format json --describe binaries --target ${pkgs.stdenv.hostPlatform.rust.rustcTarget} \
+              cargo cyclonedx \
+                --spec-version 1.5 \
+                --format json \
+                --describe binaries \
+                --target ${pkgs.stdenv.hostPlatform.rust.rustcTarget} \
             ''
             + pkgs.lib.optionalString (
               builtins.hasAttr "buildNoDefaultFeatures" previousAttrs && previousAttrs.buildNoDefaultFeatures
