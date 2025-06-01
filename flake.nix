@@ -82,22 +82,7 @@
             sbom = buildBom transformer { };
           };
 
-          checks = {
-            clippy = transformer.overrideAttrs (
-              _: previousAttrs: {
-                pname = previousAttrs.pname + "-clippy";
-                nativeCheckInputs = (previousAttrs.nativeCheckInputs or [ ]) ++ [ pkgs.clippy ];
-                checkPhase = "cargo clippy";
-              }
-            );
-            rustfmt = transformer.overrideAttrs (
-              _: previousAttrs: {
-                pname = previousAttrs.pname + "-rustfmt";
-                nativeCheckInputs = (previousAttrs.nativeCheckInputs or [ ]) ++ [ pkgs.rustfmt ];
-                checkPhase = "cargo fmt --check";
-              }
-            );
-          } // import ./nix/tests { inherit pkgs buildBom passthruVendoredSbom; };
+          checks = transformer.tests // import ./nix/tests { inherit pkgs buildBom passthruVendoredSbom; };
 
           pre-commit = {
             check.enable = true;
