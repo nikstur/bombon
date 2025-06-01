@@ -99,11 +99,12 @@ let
   buildBomAndValidate =
     drv: options:
     pkgs.runCommand "${drv.name}-bom-validation" { nativeBuildInputs = [ pkgs.check-jsonschema ]; } ''
+      sbom="${buildBom drv options}"
       check-jsonschema \
         --schemafile "${cycloneDxSpec}/schema/bom-${cycloneDxVersion}.schema.json" \
         --base-uri "${cycloneDxSpec}/schema/bom-${cycloneDxVersion}.schema.json" \
-        "${buildBom drv options}"
-      touch $out
+        "$sbom"
+      ln -s $sbom $out
     '';
 
   genAttrsFromDrvs =
