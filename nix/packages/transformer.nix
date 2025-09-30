@@ -44,5 +44,6 @@ rustPlatform.buildRustPackage (finalAttrs: {
     license = licenses.mit;
     maintainers = with lib.maintainers; [ nikstur ];
     mainProgram = "bombon-transformer";
+    identifiers.cpeParts = lib.meta.cpePatchVersionInUpdateWithVendor "nikstur" finalAttrs.version;
   };
 })
