@@ -74,13 +74,12 @@ let
       patches = lib.flatten (drv.patches or [ ]);
     }
     // lib.optionalAttrs (drv ? src && drv.src ? urls) {
-      src =
-        {
-          inherit (drv.src) urls;
-        }
-        // lib.optionalAttrs (drv.src ? outputHash) {
-          hash = drv.src.outputHash;
-        };
+      src = {
+        inherit (drv.src) urls;
+      }
+      // lib.optionalAttrs (drv.src ? outputHash) {
+        hash = drv.src.outputHash;
+      };
     }
     // lib.optionalAttrs (drv ? bombonVendoredSbom) {
       vendoredSbom = drv.bombonVendoredSbom.outPath;

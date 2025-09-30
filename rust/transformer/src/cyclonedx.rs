@@ -101,7 +101,7 @@ impl CycloneDXComponents {
 
         // Add the components from the vendored SBOMs
         for entry in fs::read_dir(&path)
-            .with_context(|| format!("Failed to read {:?}", path.as_ref()))?
+            .with_context(|| format!("Failed to read {}", path.as_ref().display()))?
             .flatten()
         {
             let bom = CycloneDXBom::from_file(entry.path())?;
