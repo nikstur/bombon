@@ -93,7 +93,7 @@ impl CycloneDXComponents {
         let mut m = BTreeMap::new();
 
         // Insert the components from the original SBOM
-        for component in self.0 .0.clone() {
+        for component in self.0.0.clone() {
             let key = component
                 .bom_ref
                 .clone()
@@ -118,7 +118,7 @@ impl CycloneDXComponents {
             }
         }
 
-        self.0 .0 = m.into_values().collect();
+        self.0.0 = m.into_values().collect();
         Ok(())
     }
 }
@@ -158,10 +158,10 @@ impl CycloneDXComponent {
 
         let mut external_references = Vec::new();
 
-        if let Some(src) = derivation.src {
-            if !src.urls.is_empty() {
-                external_references.extend(convert_src(&src));
-            }
+        if let Some(src) = derivation.src
+            && !src.urls.is_empty()
+        {
+            external_references.extend(convert_src(&src));
         }
         if let Some(meta) = derivation.meta {
             component.licenses = convert_licenses(&meta);
