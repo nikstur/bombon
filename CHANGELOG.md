@@ -7,6 +7,8 @@
 - Added the ability to extract patches from a derivation and include them in
   the SBOM.
 - Added the ability to include multiple source URLs as external references.
+- Added the ability to extract CPEs from Nix packages. "Guessed" CPEs in
+  the `possibleCPEs` field are included as evidence in the SBOM.
 
 ### Fixed
 
