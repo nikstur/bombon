@@ -1,8 +1,8 @@
 use std::fmt::Write;
 use std::str::FromStr;
 
-use anyhow::{anyhow, bail, Error, Result};
-use base64::prelude::{Engine as _, BASE64_STANDARD};
+use anyhow::{Error, Result, anyhow, bail};
+use base64::prelude::{BASE64_STANDARD, Engine as _};
 
 #[derive(Debug, Clone)]
 #[allow(clippy::module_name_repetitions)]

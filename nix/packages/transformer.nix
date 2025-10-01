@@ -23,18 +23,17 @@ rustPlatform.buildRustPackage (finalAttrs: {
   };
 
   passthru.tests = {
-    clippy = finalAttrs.finalPackage.overrideAttrs (
+    lint-format = finalAttrs.finalPackage.overrideAttrs (
       _: previousAttrs: {
-        pname = previousAttrs.pname + "-clippy";
-        nativeCheckInputs = (previousAttrs.nativeCheckInputs or [ ]) ++ [ clippy ];
-        checkPhase = "cargo clippy";
-      }
-    );
-    rustfmt = finalAttrs.finalPackage.overrideAttrs (
-      _: previousAttrs: {
-        pname = previousAttrs.pname + "-rustfmt";
-        nativeCheckInputs = (previousAttrs.nativeCheckInputs or [ ]) ++ [ rustfmt ];
-        checkPhase = "cargo fmt --check";
+        pname = previousAttrs.pname + "-lint-format";
+        nativeCheckInputs = (previousAttrs.nativeCheckInputs or [ ]) ++ [
+          clippy
+          rustfmt
+        ];
+        checkPhase = ''
+          cargo clippy
+          cargo fmt --check
+        '';
       }
     );
   };

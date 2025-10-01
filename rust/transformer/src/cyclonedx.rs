@@ -21,6 +21,7 @@ use cyclonedx_bom::models::hash::{Hash, HashAlgorithm, HashValue, Hashes};
 use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
 use cyclonedx_bom::models::metadata::Metadata;
 use cyclonedx_bom::models::tool::Tools;
+use itertools::Itertools;
 use sha2::{Digest, Sha256};
 
 use crate::derivation::{self, Derivation, Meta, Src};
@@ -93,7 +94,7 @@ impl CycloneDXComponents {
         let mut m = BTreeMap::new();
 
         // Insert the components from the original SBOM
-        for component in self.0 .0.clone() {
+        for component in self.0.0.clone() {
             let key = component
                 .bom_ref
                 .clone()
@@ -118,8 +119,27 @@ impl CycloneDXComponents {
             }
         }
 
-        self.0 .0 = m.into_values().collect();
+        self.0.0 = m.into_values().collect();
         Ok(())
+    }
+
+    // Deduplicate components.
+    //
+    // Remove entries with duplicate PURLs, falling back to bom-refs, falling back to the name of
+    // the component.
+    pub fn deduplicate(&mut self) {
+        self.0.0 = self
+            .0
+            .0
+            .clone()
+            .into_iter()
+            .unique_by(|c: &Component| {
+                c.purl.as_ref().map_or(
+                    c.bom_ref.clone().unwrap_or(c.name.to_string()),
+                    std::string::ToString::to_string,
+                )
+            })
+            .collect();
     }
 }
 
@@ -158,10 +178,10 @@ impl CycloneDXComponent {
 
         let mut external_references = Vec::new();
 
-        if let Some(src) = derivation.src {
-            if !src.urls.is_empty() {
-                external_references.extend(convert_src(&src));
-            }
+        if let Some(src) = derivation.src
+            && !src.urls.is_empty()
+        {
+            external_references.extend(convert_src(&src));
         }
         if let Some(meta) = derivation.meta {
             component.licenses = convert_licenses(&meta);
