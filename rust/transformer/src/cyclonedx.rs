@@ -10,8 +10,10 @@ use cyclonedx_bom::external_models::uri::{Purl, Uri};
 use cyclonedx_bom::models::attached_text::AttachedText;
 use cyclonedx_bom::models::bom::{Bom, UrnUuid};
 use cyclonedx_bom::models::code::{Diff, Patch, PatchClassification, Patches};
-use cyclonedx_bom::models::component::Pedigree;
-use cyclonedx_bom::models::component::{Classification, Component, Components, Scope};
+use cyclonedx_bom::models::component::{Classification, Component, Components, Cpe, Scope};
+use cyclonedx_bom::models::component::{
+    ComponentEvidence, ConfidenceScore, Identity, IdentityField, Method, Methods, Pedigree,
+};
 use cyclonedx_bom::models::external_reference::{
     self, ExternalReference, ExternalReferenceType, ExternalReferences,
 };
@@ -164,6 +166,13 @@ impl CycloneDXComponent {
         if let Some(meta) = derivation.meta {
             component.licenses = convert_licenses(&meta);
             component.description = meta.description.map(|s| NormalizedString::new(&s));
+            if let Some(identifiers) = meta.identifiers {
+                if let Some(cpe) = identifiers.cpe {
+                    component.cpe = Some(Cpe::new(&cpe));
+                } else if let Some(possible_cpes) = identifiers.possible_cpes {
+                    component.evidence = cpes_to_evidence(&possible_cpes);
+                }
+            }
             if let Some(homepage) = meta.homepage {
                 external_references.push(convert_homepage(&homepage));
             }
@@ -208,6 +217,39 @@ fn convert_licenses(meta: &Meta) -> Option<Licenses> {
             .collect(),
         _ => return None,
     }))
+}
+
+fn cpes_to_evidence(possible_cpes: &[derivation::Cpe]) -> Option<ComponentEvidence> {
+    if possible_cpes.is_empty() {
+        return None;
+    }
+    let methods = Methods(
+        possible_cpes
+            .iter()
+            .map(|cpe| Method {
+                // Because we extract this information from the package definition.
+                // See https://cyclonedx.org/guides/OWASP_CycloneDX-Authoritative-Guide-to-SBOM-en.pdf p.63
+                technique: "manifest-analysis".to_string(),
+                // Safety: division could panic here but we've already prevented len() from being 0 above.
+                #[allow(clippy::cast_precision_loss)]
+                confidence: ConfidenceScore::new(1.0 / possible_cpes.len() as f32),
+                value: cpe.cpe.clone(),
+            })
+            .collect(),
+    );
+    // ComponentEvidence and Identity do not have Default implementations.
+    Some(ComponentEvidence {
+        identity: Some(Identity {
+            field: IdentityField::Cpe,
+            methods: Some(methods),
+            confidence: None,
+            tools: None,
+        }),
+        licenses: None,
+        copyright: None,
+        occurrences: None,
+        callstack: None,
+    })
 }
 
 fn convert_src(src: &Src) -> Vec<ExternalReference> {

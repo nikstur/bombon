@@ -41,6 +41,19 @@ pub struct Meta {
     pub license: Option<LicenseField>,
     pub homepage: Option<String>,
     pub description: Option<String>,
+    pub identifiers: Option<Identifiers>,
+}
+
+#[derive(Deserialize, Clone, Debug, Default)]
+pub struct Identifiers {
+    pub cpe: Option<String>,
+    #[serde(rename = "possibleCPEs")]
+    pub possible_cpes: Option<Vec<Cpe>>,
+}
+
+#[derive(Deserialize, Clone, Debug, Default)]
+pub struct Cpe {
+    pub cpe: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
