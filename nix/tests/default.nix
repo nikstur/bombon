@@ -105,14 +105,22 @@ let
 
   buildBomAndValidate =
     drv: options:
-    pkgs.runCommand "${drv.name}-bom-validation" { nativeBuildInputs = [ pkgs.check-jsonschema ]; } ''
-      sbom="${buildBom drv options}"
-      check-jsonschema \
-        --schemafile "${cycloneDxSpec}/schema/bom-${cycloneDxVersion}.schema.json" \
-        --base-uri "${cycloneDxSpec}/schema/bom-${cycloneDxVersion}.schema.json" \
-        "$sbom"
-      ln -s $sbom $out
-    '';
+    let
+      sbom = buildBom drv options;
+    in
+    pkgs.runCommand "${drv.name}-bom-validation"
+      {
+        nativeBuildInputs = [ pkgs.check-jsonschema ];
+        passthru = { inherit sbom; };
+      }
+      ''
+        sbom="${sbom}"
+        check-jsonschema \
+          --schemafile "${cycloneDxSpec}/schema/bom-${cycloneDxVersion}.schema.json" \
+          --base-uri "${cycloneDxSpec}/schema/bom-${cycloneDxVersion}.schema.json" \
+          "$sbom"
+        ln -s $sbom $out
+      '';
 
   genAttrsFromDrvs =
     drvs: f: builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.name (f d.drv d.options)) drvs);
