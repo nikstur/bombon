@@ -28,21 +28,20 @@
             "installPhase"
           ];
 
-          buildPhase =
-            ''
-              cargo cyclonedx \
-                --spec-version 1.5 \
-                --format json \
-                --describe binaries \
-                --target ${pkgs.stdenv.hostPlatform.rust.rustcTarget} \
-            ''
-            + pkgs.lib.optionalString (
-              builtins.hasAttr "buildNoDefaultFeatures" previousAttrs && previousAttrs.buildNoDefaultFeatures
-            ) " --no-default-features"
-            + pkgs.lib.optionalString (
-              builtins.hasAttr "buildFeatures" previousAttrs && builtins.length previousAttrs.buildFeatures > 0
-            ) (" --features " + builtins.concatStringsSep "," previousAttrs.buildFeatures)
-            + pkgs.lib.optionalString (!includeBuildtimeDependencies) " --no-build-deps";
+          buildPhase = ''
+            cargo cyclonedx \
+              --spec-version 1.5 \
+              --format json \
+              --describe binaries \
+              --target ${pkgs.stdenv.hostPlatform.rust.rustcTarget} \
+          ''
+          + pkgs.lib.optionalString (
+            builtins.hasAttr "buildNoDefaultFeatures" previousAttrs && previousAttrs.buildNoDefaultFeatures
+          ) " --no-default-features"
+          + pkgs.lib.optionalString (
+            builtins.hasAttr "buildFeatures" previousAttrs && builtins.length previousAttrs.buildFeatures > 0
+          ) (" --features " + builtins.concatStringsSep "," previousAttrs.buildFeatures)
+          + pkgs.lib.optionalString (!includeBuildtimeDependencies) " --no-build-deps";
 
           installPhase = ''
             mkdir -p $out
