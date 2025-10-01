@@ -21,6 +21,7 @@ use cyclonedx_bom::models::hash::{Hash, HashAlgorithm, HashValue, Hashes};
 use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
 use cyclonedx_bom::models::metadata::Metadata;
 use cyclonedx_bom::models::tool::Tools;
+use itertools::Itertools;
 use sha2::{Digest, Sha256};
 
 use crate::derivation::{self, Derivation, Meta, Src};
@@ -120,6 +121,25 @@ impl CycloneDXComponents {
 
         self.0.0 = m.into_values().collect();
         Ok(())
+    }
+
+    // Deduplicate components.
+    //
+    // Remove entries with duplicate PURLs, falling back to bom-refs, falling back to the name of
+    // the component.
+    pub fn deduplicate(&mut self) {
+        self.0.0 = self
+            .0
+            .0
+            .clone()
+            .into_iter()
+            .unique_by(|c: &Component| {
+                c.purl.as_ref().map_or(
+                    c.bom_ref.clone().unwrap_or(c.name.to_string()),
+                    std::string::ToString::to_string,
+                )
+            })
+            .collect();
     }
 }
 

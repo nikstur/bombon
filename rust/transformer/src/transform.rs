@@ -77,6 +77,8 @@ pub fn transform(
         }
     }
 
+    components.deduplicate();
+
     let bom = CycloneDXBom::build(target_derivation, components, output);
     let mut file = File::create(output)
         .with_context(|| format!("Failed to create file {}", output.display()))?;
