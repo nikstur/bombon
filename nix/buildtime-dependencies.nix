@@ -20,7 +20,7 @@ let
   drvDeps =
     drv:
     lib.mapAttrsToList (
-      k: v:
+      _k: v:
       if lib.isDerivation v then
         (drvOutputs v)
       else if lib.isList v then
