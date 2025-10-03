@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use serde::Deserialize;
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -21,16 +20,27 @@ impl Derivation {
     ///
     /// This can be used if we don't have any information besides the path itself.
     pub fn from_store_path(store_path: &str) -> Self {
-        // Because we only have the store path we have to derive the name from it
-        let name = store_path.strip_prefix("/nix/store/").map(|s| {
+        let mut name = None;
+        let mut version = None;
+
+        if let Some(s) = store_path.strip_prefix("/nix/store/") {
             let mut split = s.split('-');
+            let last_element = split.next_back();
+            version = last_element.and_then(|v| v.starts_with(char::is_numeric).then(|| v.into()));
             split.next();
-            split.join("-")
-        });
+            name = Some({
+                let mut s = split.collect::<Vec<_>>();
+                if version.is_none() {
+                    s.push(last_element.unwrap_or_default());
+                }
+                s.join("-")
+            });
+        }
 
         Self {
             path: store_path.to_string(),
             name,
+            version,
             ..Self::default()
         }
     }
@@ -92,4 +102,42 @@ pub struct License {
 pub struct Src {
     pub urls: Vec<String>,
     pub hash: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn check_derivation_from_store(store_path: &str, name: Option<&str>, version: Option<&str>) {
+        let derivation = Derivation::from_store_path(store_path);
+        assert_eq!(derivation.name, name.map(std::string::ToString::to_string));
+        assert_eq!(
+            derivation.version,
+            version.map(std::string::ToString::to_string)
+        );
+    }
+
+    #[test]
+    fn derivation_from_store() {
+        check_derivation_from_store(
+            "/nix/store/bqwmxjkrkmn1kqivq4pr053j68biq4k4-mailcap-2.1.54",
+            Some("mailcap"),
+            Some("2.1.54"),
+        );
+        check_derivation_from_store(
+            "/nix/store/bqwmxjkrkmn1kqivq4pr053j68biq4k4-mailcap-extra-2.1.54",
+            Some("mailcap-extra"),
+            Some("2.1.54"),
+        );
+        check_derivation_from_store(
+            "/nix/store/lcxn67gbjdcr6bjf1rcs03ywa7gcslr2-system-units",
+            Some("system-units"),
+            None,
+        );
+        check_derivation_from_store(
+            "/nix/store/13cll4sxzxxi2lxbpsg5nvfjyv7qsznr-groupdel.pam",
+            Some("groupdel.pam"),
+            None,
+        );
+    }
 }
