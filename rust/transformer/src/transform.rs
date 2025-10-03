@@ -60,7 +60,11 @@ pub fn transform(
         // Filter out all doc and man outputs.
         .filter(|derivation| {
             !matches!(
-                derivation.output_name.clone().unwrap_or_default().as_ref(),
+                derivation
+                    .output_name
+                    .as_ref()
+                    .unwrap_or(&String::new())
+                    .as_ref(),
                 "doc" | "man"
             )
         })
