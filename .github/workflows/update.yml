@@ -1,0 +1,29 @@
+name: "Update Nix dependencies"
+
+on:
+  schedule:
+    # Run on the 2nd of every month at 04:04
+    # This should avoid spikes in usage caused by other scheduled jobs
+    - cron: "4 4 2 * *"
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@v20
+        with:
+          diagnostic-endpoint: ""
+          source-url: "https://install.lix.systems/lix/lix-installer-x86_64-linux"
+      - env:
+          LON_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LON_LABELS: "lon,bot"
+          LON_LIST_COMMITS: 10
+        run: nix-shell nix/ci-shell.nix --run "lon -vv bot github"
+
+env:
+  FORCE_COLOR: 1

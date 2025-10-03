@@ -1,4 +1,4 @@
-name: "Run nix flake check"
+name: "CI"
 
 on:
   push:
@@ -6,9 +6,15 @@ on:
   pull_request:
   merge_group:
 
+env:
+  FORCE_COLOR: 1
+
 jobs:
-  build:
+  eval:
+    name: Evaluate
     runs-on: ubuntu-latest
+    outputs:
+      stdout: ${{ steps.nix-eval-jobs.outputs.stdout }}
     steps:
       - uses: actions/checkout@v5
       - uses: DeterminateSystems/nix-installer-action@v20
@@ -18,7 +24,40 @@ jobs:
       - uses: DeterminateSystems/magic-nix-cache-action@v13
         with:
           diagnostic-endpoint: ""
-      - run: nix flake check --log-format raw-with-logs -L
+      - name: Run nix-eval-jobs
+        id: nix-eval-jobs
+        run: |
+          {
+            echo 'stdout<<EOF'
+            nix-shell nix/ci-shell.nix --run eval-checks
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
-env:
-  FORCE_COLOR: 1
+  build:
+    needs: [ eval ]
+    name: Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        derivation: ${{ fromJson(needs.eval.outputs.stdout) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@v20
+        with:
+          diagnostic-endpoint: ""
+          source-url: "https://install.lix.systems/lix/lix-installer-x86_64-linux"
+      - uses: DeterminateSystems/magic-nix-cache-action@v13
+        with:
+          diagnostic-endpoint: ""
+      - name: Build ${{ matrix.derivation.attr }}
+        run: nix-build release.nix -A ${{ matrix.derivation.attr }}
+        if: ${{ ! matrix.derivation.isCached }}
+
+  # Only here for branch protection rules
+  build-status:
+    needs: [ build ]
+    name: Build Status
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+    - run: ${{!contains(needs.build.result, 'failure')}}
