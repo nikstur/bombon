@@ -60,12 +60,24 @@ pub fn transform(
         // Filter out all doc and man outputs.
         .filter(|derivation| {
             !matches!(
-                derivation.output_name.clone().unwrap_or_default().as_ref(),
+                derivation
+                    .output_name
+                    .as_ref()
+                    .unwrap_or(&String::new())
+                    .as_ref(),
                 "doc" | "man"
             )
         })
         // Filter out derivations that match one of the exclude patterns.
-        .filter(|derivation| !set.is_match(&derivation.path));
+        .filter(|derivation| !set.is_match(&derivation.path))
+        .filter(|derivation| derivation.version.is_some())
+        .filter(|derivation| {
+            derivation
+                .meta
+                .as_ref()
+                .and_then(|m| m.license.as_ref())
+                .is_some()
+        });
 
     let mut components = CycloneDXComponents::from_derivations(all_derivations);
 
