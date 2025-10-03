@@ -43,11 +43,12 @@ let
       drv = poetry;
       options = { };
     }
-    {
-      name = "poetry-buildtime";
-      drv = poetry;
-      options = buildtimeOptions;
-    }
+    # Takes too much storage for GitHub Actions
+    # {
+    #   name = "poetry-buildtime";
+    #   drv = poetry;
+    #   options = buildtimeOptions;
+    # }
 
     {
       name = "git";
@@ -67,13 +68,14 @@ let
         extraPaths = [ poetry ];
       };
     }
-    {
-      name = "git-extra-paths-buildtime";
-      drv = git;
-      options = buildtimeOptions // {
-        extraPaths = [ poetry ];
-      };
-    }
+    # Takes too much storage for GitHub Actions
+    # {
+    #   name = "git-extra-paths-buildtime";
+    #   drv = git;
+    #   options = buildtimeOptions // {
+    #     extraPaths = [ poetry ];
+    #   };
+    # }
 
     {
       name = "cloud-hypervisor";
