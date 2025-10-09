@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 (unreleased)
+## 0.4.0
 
 ### Added
 
@@ -9,8 +9,16 @@
 - Added the ability to include multiple source URLs as external references.
 - Added the ability to extract CPEs from Nix packages. "Guessed" CPEs in
   the `possibleCPEs` field are included as evidence in the SBOM.
-- Added the deduplication of components based on PURL. On the first component
+- Added deduplication of components based on PURL. Only the first component
   with a certain PURL will be kept in the final SBOM.
+
+### Changed
+
+- Derivations without a version are now excluded from the final SBOM as these
+  are usually ad-hoc created (e.g. for systemd units, etc.) and thus not
+  relevant.
+- Improved the guessing of versions from a store path. Now the last component
+  is usually picked up as the version of the package.
 
 ### Fixed
 

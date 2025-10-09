@@ -70,14 +70,7 @@ pub fn transform(
         })
         // Filter out derivations that match one of the exclude patterns.
         .filter(|derivation| !set.is_match(&derivation.path))
-        .filter(|derivation| derivation.version.is_some())
-        .filter(|derivation| {
-            derivation
-                .meta
-                .as_ref()
-                .and_then(|m| m.license.as_ref())
-                .is_some()
-        });
+        .filter(|derivation| derivation.version.is_some());
 
     let mut components = CycloneDXComponents::from_derivations(all_derivations);
 
