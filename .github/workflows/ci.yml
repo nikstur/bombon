@@ -16,11 +16,8 @@ jobs:
     outputs:
       stdout: ${{ steps.nix-eval-jobs.outputs.stdout }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: DeterminateSystems/nix-installer-action@v20
-        with:
-          diagnostic-endpoint: ""
-          source-url: "https://install.lix.systems/lix/lix-installer-x86_64-linux"
+      - uses: actions/checkout@v6
+      - uses: samueldr/lix-gha-installer-action@v2025-10-27
       - uses: DeterminateSystems/magic-nix-cache-action@v13
         with:
           diagnostic-endpoint: ""
@@ -41,11 +38,8 @@ jobs:
       matrix:
         derivation: ${{ fromJson(needs.eval.outputs.stdout) }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: DeterminateSystems/nix-installer-action@v20
-        with:
-          diagnostic-endpoint: ""
-          source-url: "https://install.lix.systems/lix/lix-installer-x86_64-linux"
+      - uses: actions/checkout@v6
+      - uses: samueldr/lix-gha-installer-action@v2025-10-27
       - uses: DeterminateSystems/magic-nix-cache-action@v13
         with:
           diagnostic-endpoint: ""
