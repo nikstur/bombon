@@ -29,6 +29,10 @@
           ];
 
           buildPhase = ''
+            if [ -n "''${cargoRoot-}" ]; then
+              cd "$cargoRoot"
+            fi
+
             cargo cyclonedx \
               --spec-version 1.5 \
               --format json \
