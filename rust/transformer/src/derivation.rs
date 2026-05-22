@@ -70,25 +70,14 @@ pub struct Cpe {
 #[serde(untagged)]
 pub enum LicenseField {
     LicenseList(LicenseList),
-    License(License),
+    LicenseExpression(LicenseExpression),
     // In very rare cases the license is just a String.
     // This mostly serves as a fallback so that serde doesn't panic.
     String(String),
 }
 
-impl LicenseField {
-    pub fn into_vec(self) -> Vec<License> {
-        match self {
-            Self::LicenseList(license_list) => license_list.0,
-            Self::License(license) => vec![license],
-            // Fallback to handle very unusual license fields in Nix.
-            Self::String(_) => vec![],
-        }
-    }
-}
-
 #[derive(Deserialize, Clone, Debug)]
-pub struct LicenseList(Vec<License>);
+pub struct LicenseList(pub Vec<License>);
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct License {
@@ -97,6 +86,9 @@ pub struct License {
     #[serde(rename = "spdxId")]
     pub spdx_id: Option<String>,
 }
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct LicenseExpression(pub String);
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct Src {

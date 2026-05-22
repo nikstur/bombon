@@ -6,6 +6,7 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use cyclonedx_bom::external_models::normalized_string::NormalizedString;
+use cyclonedx_bom::external_models::spdx::SpdxExpression;
 use cyclonedx_bom::external_models::uri::{Purl, Uri};
 use cyclonedx_bom::models::attached_text::AttachedText;
 use cyclonedx_bom::models::bom::{Bom, UrnUuid};
@@ -227,16 +228,34 @@ fn string_to_url(s: &str) -> external_reference::Uri {
     external_reference::Uri::Url(Uri::new(s))
 }
 
+/// Convert licenses from a derivations meta field.
+///
+/// Converts a list of licenses to a list of licenses in the ``CycloneDX`` format.
+///
+/// Converts a single license to a SPDX expression to be able to accommodate the new compound
+/// license types.
+///
+/// Assumes that compound licenses are never inside a list.
 fn convert_licenses(meta: &Meta) -> Option<Licenses> {
     Some(Licenses(match &meta.license {
-        Some(license) => license
-            .clone()
-            .into_vec()
-            .into_iter()
-            .map(convert_license)
-            .collect(),
+        Some(license) => match license {
+            derivation::LicenseField::LicenseList(list) => {
+                list.0.clone().into_iter().map(convert_license).collect()
+            }
+            derivation::LicenseField::LicenseExpression(expr) => {
+                vec![LicenseChoice::Expression(SpdxExpression::new(&expr.0))]
+            }
+            derivation::LicenseField::String(_) => return None,
+        },
         _ => return None,
     }))
+}
+
+fn convert_license(license: derivation::License) -> LicenseChoice {
+    match license.spdx_id {
+        Some(spdx_id) => LicenseChoice::License(License::license_id(&spdx_id)),
+        None => LicenseChoice::License(License::named_license(&license.full_name)),
+    }
 }
 
 fn cpes_to_evidence(possible_cpes: &[derivation::Cpe]) -> Option<ComponentEvidence> {
@@ -311,13 +330,6 @@ fn convert_hash(s: &str) -> Option<Hashes> {
         alg: sri_hash.algorithm.into(),
     };
     Some(Hashes(vec![hash]))
-}
-
-fn convert_license(license: derivation::License) -> LicenseChoice {
-    match license.spdx_id {
-        Some(spdx_id) => LicenseChoice::License(License::license_id(&spdx_id)),
-        None => LicenseChoice::License(License::named_license(&license.full_name)),
-    }
 }
 
 fn convert_homepage(homepage: &str) -> ExternalReference {

@@ -31,11 +31,12 @@ let
       drv = python3;
       options = { };
     }
-    {
-      name = "python3-buildtime";
-      drv = python3;
-      options = buildtimeOptions;
-    }
+    # Sacrificed to make space for the LLVM test
+    # {
+    #   name = "python3-buildtime";
+    #   drv = python3;
+    #   options = buildtimeOptions;
+    # }
 
     # weird string license in buildtimeDependencies
     {
@@ -92,6 +93,13 @@ let
     {
       name = "kexec-tools";
       drv = kexec-tools;
+      options = { };
+    }
+
+    # compound license
+    {
+      name = "llvm";
+      drv = llvm;
       options = { };
     }
   ];
