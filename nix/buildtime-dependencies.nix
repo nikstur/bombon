@@ -61,11 +61,18 @@ let
   # only the nix store path.
   fields =
     drv:
+    let
+      meta = lib.recursiveUpdate drv.meta (
+        lib.optionalAttrs (drv.meta ? license) {
+          license =
+            if !(lib.isList drv.meta.license) then lib.licenses.toSPDX drv.meta.license else drv.meta.license;
+        }
+      );
+    in
     (optionalGetAttrs [
       "name"
       "pname"
       "version"
-      "meta"
       "outputName"
       "outputHash"
     ] drv)
@@ -83,6 +90,9 @@ let
     }
     // lib.optionalAttrs (drv ? bombonVendoredSbom) {
       vendoredSbom = drv.bombonVendoredSbom.outPath;
+    }
+    // lib.optionalAttrs (drv ? meta) {
+      inherit meta;
     };
 
 in

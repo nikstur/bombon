@@ -31,11 +31,12 @@ let
       drv = python3;
       options = { };
     }
-    {
-      name = "python3-buildtime";
-      drv = python3;
-      options = buildtimeOptions;
-    }
+    # Sacrificed to make space for the LLVM test
+    # {
+    #   name = "python3-buildtime";
+    #   drv = python3;
+    #   options = buildtimeOptions;
+    # }
 
     # weird string license in buildtimeDependencies
     {
@@ -94,6 +95,13 @@ let
       drv = kexec-tools;
       options = { };
     }
+
+    # compound license
+    {
+      name = "llvm";
+      drv = llvm;
+      options = { };
+    }
   ];
 
   cycloneDxVersion = "1.5";
@@ -101,8 +109,11 @@ let
   cycloneDxSpec = pkgs.fetchFromGitHub {
     owner = "CycloneDX";
     repo = "specification";
-    rev = cycloneDxVersion;
-    sha256 = "sha256-bAXi7m7kWJ+lZNYnvSNmLQ6+kLqRw379crbC3viNqzY=";
+    # Download a newer version than the one being checked because it includes
+    # updated SPDX identifiers. They are stored in a file that just lives
+    # alongside the CycloneDX schema file.
+    rev = "1.7";
+    sha256 = "sha256-30u5dqNj3xgVO2MONdHJIoqwdgFSbyOwBQQc0AnoDWM=";
   };
 
   buildBomAndValidate =
