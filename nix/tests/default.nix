@@ -38,12 +38,13 @@ let
     #   options = buildtimeOptions;
     # }
 
+    # Takes too much storage for GitHub Actions
     # weird string license in buildtimeDependencies
-    {
-      name = "poetry";
-      drv = poetry;
-      options = { };
-    }
+    # {
+    #   name = "poetry";
+    #   drv = poetry;
+    #   options = { };
+    # }
     # Takes too much storage for GitHub Actions
     # {
     #   name = "poetry-buildtime";
@@ -66,7 +67,7 @@ let
       name = "git-extra-paths";
       drv = git;
       options = {
-        extraPaths = [ poetry ];
+        extraPaths = [ hello ];
       };
     }
     # Takes too much storage for GitHub Actions
@@ -104,15 +105,15 @@ let
     }
   ];
 
-  cycloneDxVersion = "1.5";
+  cycloneDxVersion = "1.7";
 
   cycloneDxSpec = pkgs.fetchFromGitHub {
     owner = "CycloneDX";
     repo = "specification";
-    # Download a newer version than the one being checked because it includes
-    # updated SPDX identifiers. They are stored in a file that just lives
-    # alongside the CycloneDX schema file.
-    rev = "1.7";
+    # Potentially download a newer version than the one being checked because
+    # it includes updated SPDX identifiers. They are stored in a file that just
+    # lives alongside the CycloneDX schema file.
+    rev = cycloneDxVersion;
     sha256 = "sha256-30u5dqNj3xgVO2MONdHJIoqwdgFSbyOwBQQc0AnoDWM=";
   };
 

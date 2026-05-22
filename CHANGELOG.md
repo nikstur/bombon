@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added support for compound licenses from Nixpkgs. Compound licenses are now
+  included as SPDX expressions in the SBOM.
+- Added support for CycloneDX v1.7.
+
 ## 0.4.0
 
 ### Added
