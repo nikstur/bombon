@@ -38,12 +38,13 @@ let
     #   options = buildtimeOptions;
     # }
 
+    # Takes too much storage for GitHub Actions
     # weird string license in buildtimeDependencies
-    {
-      name = "poetry";
-      drv = poetry;
-      options = { };
-    }
+    # {
+    #   name = "poetry";
+    #   drv = poetry;
+    #   options = { };
+    # }
     # Takes too much storage for GitHub Actions
     # {
     #   name = "poetry-buildtime";
@@ -66,7 +67,7 @@ let
       name = "git-extra-paths";
       drv = git;
       options = {
-        extraPaths = [ poetry ];
+        extraPaths = [ hello ];
       };
     }
     # Takes too much storage for GitHub Actions
