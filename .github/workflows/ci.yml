@@ -16,7 +16,7 @@ jobs:
     outputs:
       stdout: ${{ steps.nix-eval-jobs.outputs.stdout }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: samueldr/lix-gha-installer-action@v2025-10-27
         with:
           diagnostic-endpoint: ""
@@ -37,7 +37,7 @@ jobs:
       matrix:
         derivation: ${{ fromJson(needs.eval.outputs.stdout) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: samueldr/lix-gha-installer-action@v2025-10-27
         with:
           diagnostic-endpoint: ""
