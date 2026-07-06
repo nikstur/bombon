@@ -15,6 +15,7 @@ use cyclonedx_bom::models::component::{Classification, Component, Components, Cp
 use cyclonedx_bom::models::component::{
     ComponentEvidence, ConfidenceScore, Identity, IdentityField, Method, Methods, Pedigree,
 };
+use cyclonedx_bom::models::dependency::{Dependencies, Dependency};
 use cyclonedx_bom::models::external_reference::{
     self, ExternalReference, ExternalReferenceType, ExternalReferences,
 };
@@ -46,19 +47,21 @@ impl CycloneDXBom {
         Ok(Self(Bom::parse_from_json(file)?))
     }
 
-    pub fn build(target: Derivation, components: CycloneDXComponents, output: &Path) -> Self {
+    pub fn build(
+        target: Derivation,
+        components: CycloneDXComponents,
+        dependencies: Dependencies,
+        output: &Path,
+    ) -> Self {
         Self(Bom {
             components: Some(components.into()),
+            dependencies: (!dependencies.0.is_empty()).then_some(dependencies),
             metadata: Some(metadata_from_derivation(target)),
             // Derive a reproducible serial number from the output path. This works because the Nix
             // outPath of the derivation is input addressed and thus reproducible.
             serial_number: Some(derive_serial_number(output.as_os_str().as_encoded_bytes())),
             ..Bom::default()
         })
-    }
-
-    fn components(self) -> Option<Components> {
-        self.0.components
     }
 }
 
@@ -91,8 +94,20 @@ impl CycloneDXComponents {
     }
 
     /// Extend the `Components` with components read from multiple BOMs inside a directory.
-    pub fn extend_from_directory(&mut self, path: impl AsRef<Path>) -> Result<()> {
+    ///
+    /// Returns the `dependencies` graphs declared by those BOMs, so the (language-level)
+    /// edges they carry can be preserved in the aggregate SBOM.
+    ///
+    /// Each vendored BOM's root (`metadata.component`) describes the same artifact as the owning Nix derivation,
+    /// but is never itself emitted as a component. Its bom-ref is therefore remapped to `target_ref` so the
+    /// language-level graph connects to the store-path component instead of dangling on a root that nothing references.
+    pub fn extend_from_directory(
+        &mut self,
+        path: impl AsRef<Path>,
+        target_ref: &str,
+    ) -> Result<Vec<Dependency>> {
         let mut m = BTreeMap::new();
+        let mut dependencies = Vec::new();
 
         // Insert the components from the original SBOM
         for component in self.0.0.clone() {
@@ -109,19 +124,50 @@ impl CycloneDXComponents {
             .flatten()
         {
             let bom = CycloneDXBom::from_file(entry.path())?;
-            if let Some(components) = bom.components() {
-                for component in components.0 {
+            let root_ref = bom
+                .0
+                .metadata
+                .as_ref()
+                .and_then(|meta| meta.component.as_ref())
+                .and_then(|component| component.bom_ref.clone());
+            if let Some(components) = &bom.0.components {
+                for component in &components.0 {
                     let key = component
                         .bom_ref
                         .clone()
                         .unwrap_or_else(|| component.name.to_string());
-                    m.entry(key).or_insert(component);
+                    m.entry(key).or_insert_with(|| component.clone());
+                }
+            }
+            if let Some(deps) = bom.0.dependencies {
+                for mut dep in deps.0 {
+                    if let Some(root) = &root_ref {
+                        if dep.dependency_ref == *root {
+                            dep.dependency_ref = target_ref.to_string();
+                        }
+                        for sub in &mut dep.dependencies {
+                            if sub == root {
+                                *sub = target_ref.to_string();
+                            }
+                        }
+                    }
+                    dependencies.push(dep);
                 }
             }
         }
 
         self.0.0 = m.into_values().collect();
-        Ok(())
+        Ok(dependencies)
+    }
+
+    /// The set of references of the components currently held.
+    /// Keeps the dependency graph valid: edges to/from absent components are dropped.
+    pub fn bom_refs(&self) -> std::collections::BTreeSet<String> {
+        self.0
+            .0
+            .iter()
+            .map(|c| c.bom_ref.clone().unwrap_or_else(|| c.name.to_string()))
+            .collect()
     }
 
     // Deduplicate components.

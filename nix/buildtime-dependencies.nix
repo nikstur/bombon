@@ -79,6 +79,8 @@ let
     // {
       path = drv.outPath;
       patches = lib.flatten (drv.patches or [ ]);
+      # The store paths of this derivation's direct build-time dependencies, so the transformer can emit build-time `dependsOn` edges.
+      buildReferences = lib.unique (map (o: o.outPath) (lib.concatLists (drvDeps drv)));
     }
     // lib.optionalAttrs (drv ? src && drv.src ? urls) {
       src = {

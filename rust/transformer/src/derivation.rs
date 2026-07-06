@@ -13,6 +13,8 @@ pub struct Derivation {
     pub src: Option<Src>,
     pub vendored_sbom: Option<String>,
     pub patches: Vec<String>,
+    #[serde(default)]
+    pub build_references: Vec<String>,
 }
 
 impl Derivation {
