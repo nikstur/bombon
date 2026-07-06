@@ -4,6 +4,9 @@
 
 ### Added
 
+- Added a `bsi:component:executable` property to each component, following the
+  BSI TR-03183-2 taxonomy. A component whose derivation sets `meta.mainProgram`
+  is marked `executable`, every other store path `non-executable`.
 - Added support for compound licenses from Nixpkgs. Compound licenses are now
   included as SPDX expressions in the SBOM.
 - Added support for CycloneDX v1.7.

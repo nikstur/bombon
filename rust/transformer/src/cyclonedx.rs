@@ -21,6 +21,7 @@ use cyclonedx_bom::models::external_reference::{
 use cyclonedx_bom::models::hash::{Hash, HashAlgorithm, HashValue, Hashes};
 use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
 use cyclonedx_bom::models::metadata::Metadata;
+use cyclonedx_bom::models::property::{Properties, Property};
 use cyclonedx_bom::models::tool::Tools;
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
@@ -178,6 +179,23 @@ impl CycloneDXComponent {
         component.hashes = derivation.output_hash.and_then(|s| convert_hash(&s));
 
         let mut external_references = Vec::new();
+
+        // A component that ships a main program is treated as executable; every other store path as non-executable.
+        // Emitted for every component, as the BSI TR-03183-2 taxonomy requires it to occur exactly once.
+        let executable = if derivation
+            .meta
+            .as_ref()
+            .and_then(|m| m.main_program.as_ref())
+            .is_some()
+        {
+            "executable"
+        } else {
+            "non-executable"
+        };
+        component.properties = Some(Properties(vec![Property::new(
+            "bsi:component:executable",
+            executable,
+        )]));
 
         if let Some(src) = derivation.src
             && !src.urls.is_empty()
