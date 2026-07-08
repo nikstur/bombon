@@ -15,11 +15,6 @@ pre-commit.run {
       enable = true;
       excludes = globalExcludes;
     };
-    statix = {
-      enable = true;
-      settings.ignore = globalExcludes;
-      excludes = globalExcludes;
-    };
     deadnix = {
       enable = true;
       excludes = globalExcludes;
