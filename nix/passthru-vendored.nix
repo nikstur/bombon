@@ -53,7 +53,17 @@
             # Collect all paths to executable files. Cargo has no good support to find this
             # and this method is very robust. The flipside is that we have to build the package
             # to generate a BOM for it.
-            mapfile -d "" binaries < <(find ${package} -type f ! -name ".*" -executable -print0)
+            #
+            # Shared libraries (cdylib crate outputs) are executable too, but
+            # `cargo cyclonedx --describe binaries` never emits an SBOM for them,
+            # so requiring one below would fail any crate that builds a
+            # `.so`/`.dylib`/`.dll` (e.g. FFI or PyO3 extension modules). Exclude
+            # them from the scan.
+            mapfile -d "" binaries < <(
+              find ${package} -type f ! -name ".*" \
+                ! -name "*.so" ! -name "*.so.*" ! -name "*.dylib" ! -name "*.dll" \
+                -executable -print0
+            )
 
             for binary in "''${binaries[@]}"; do
               base=$(basename $binary)
