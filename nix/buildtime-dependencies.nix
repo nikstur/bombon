@@ -62,10 +62,21 @@ let
   fields =
     drv:
     let
+      # A derivation whose `meta.license` is a hand-rolled attrset or a plain string
+      # does not carry `licenseType`, so `lib.licenses.toSPDX` throws
+      # `attribute 'licenseType' missing` and aborts the entire SBOM. Guard the call.
+      toSPDX =
+        license:
+        if license ? licenseType then
+          lib.licenses.toSPDX license
+        else if lib.isString license then
+          license
+        else
+          "LicenseRef-unknown";
+
       meta = lib.recursiveUpdate drv.meta (
         lib.optionalAttrs (drv.meta ? license) {
-          license =
-            if !(lib.isList drv.meta.license) then lib.licenses.toSPDX drv.meta.license else drv.meta.license;
+          license = if !(lib.isList drv.meta.license) then toSPDX drv.meta.license else drv.meta.license;
         }
       );
     in
