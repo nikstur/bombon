@@ -1,25 +1,17 @@
-use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use cyclonedx_bom::models::dependency::{Dependencies, Dependency};
 use itertools::Itertools;
 use regex::RegexSet;
 
 use crate::buildtime_input::BuildtimeInput;
-use crate::cyclonedx::{CycloneDXBom, CycloneDXComponents};
+use crate::cyclonedx::{
+    CycloneDXBom, CycloneDXComponents, CycloneDXDependencies, VendoredDependencies,
+};
 use crate::derivation::Derivation;
 use crate::runtime_input::RuntimeInput;
-
-/// Strip the `/nix/store/` prefix to match how component bom-refs are derived from store paths.
-fn bom_ref(store_path: &str) -> String {
-    store_path
-        .strip_prefix("/nix/store/")
-        .unwrap_or(store_path)
-        .to_string()
-}
 
 pub fn transform(
     include_buildtime_dependencies: bool,
@@ -86,17 +78,17 @@ pub fn transform(
 
     // Augment the components with those retrieved from the `sbom` passthru attribute of the
     // derivations, preserving the (language-level) dependency edges those SBOMs declare.
-    let mut vendored_dependencies = Vec::new();
+    let mut vendored_dependencies = VendoredDependencies::new();
     for derivation in buildtime_input.0.values() {
         if let Some(sbom_path) = &derivation.vendored_sbom {
-            let target_ref = bom_ref(&derivation.path);
-            vendored_dependencies.extend(components.extend_from_directory(sbom_path, &target_ref)?);
+            vendored_dependencies
+                .extend(components.extend_from_directory(sbom_path, &derivation.path)?);
         }
     }
 
     components.deduplicate();
 
-    let dependencies = assemble_dependencies(
+    let dependencies = CycloneDXDependencies::assemble(
         &components,
         &target_derivation,
         &runtime_input,
@@ -111,80 +103,4 @@ pub fn transform(
     file.write_all(&bom.serialize()?)?;
 
     Ok(())
-}
-
-// Assemble the CycloneDX dependency graph. Three sources of edges are combined:
-//   - the Nix runtime reference graph (from exportReferencesGraph), keyed by store path
-//   - the Nix build-time reference graph (each derivation's direct build inputs)
-//   - the language-level graphs carried by the vendored SBOMs, keyed by purl
-// Edges are restricted to refs that actually exist in the final BOM, so the graph stays
-// valid after filtering and deduplication. Entries are merged by ref so no dependency_ref appears twice.
-fn assemble_dependencies(
-    components: &CycloneDXComponents,
-    target_derivation: &Derivation,
-    runtime_input: &RuntimeInput,
-    buildtime_input: &BuildtimeInput,
-    include_buildtime_dependencies: bool,
-    vendored_dependencies: Vec<Dependency>,
-) -> Dependencies {
-    let mut present = components.bom_refs();
-    present.insert(bom_ref(&target_derivation.path));
-
-    let mut graph: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    for (path, references) in &runtime_input.references {
-        let dependent = bom_ref(path);
-        if !present.contains(&dependent) {
-            continue;
-        }
-        let entry = graph.entry(dependent).or_default();
-        for reference in references {
-            let dependency = bom_ref(reference);
-            if present.contains(&dependency) {
-                entry.insert(dependency);
-            }
-        }
-    }
-    if include_buildtime_dependencies {
-        for derivation in buildtime_input.0.values() {
-            let dependent = bom_ref(&derivation.path);
-            if !present.contains(&dependent) {
-                continue;
-            }
-            let entry = graph.entry(dependent.clone()).or_default();
-            for reference in &derivation.build_references {
-                let dependency = bom_ref(reference);
-                if dependency != dependent && present.contains(&dependency) {
-                    entry.insert(dependency);
-                }
-            }
-        }
-    }
-    for dependency in vendored_dependencies {
-        if !present.contains(&dependency.dependency_ref) {
-            continue;
-        }
-        let entry = graph.entry(dependency.dependency_ref).or_default();
-        for sub in dependency.dependencies {
-            if present.contains(&sub) {
-                entry.insert(sub);
-            }
-        }
-    }
-
-    // Declare every component as a node, including leaves with no dependencies of
-    // their own: the CycloneDX spec (as required by BSI TR-03183-2 §5.1) mandates
-    // that such components appear as empty elements in the dependency graph.
-    for reference in &present {
-        graph.entry(reference.clone()).or_default();
-    }
-
-    Dependencies(
-        graph
-            .into_iter()
-            .map(|(dependency_ref, dependencies)| Dependency {
-                dependency_ref,
-                dependencies: dependencies.into_iter().collect(),
-            })
-            .collect(),
-    )
 }

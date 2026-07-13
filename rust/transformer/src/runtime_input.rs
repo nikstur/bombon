@@ -20,10 +20,10 @@ pub struct RuntimeInput {
 
 impl RuntimeInput {
     pub fn from_file(path: &Path) -> Result<Self> {
-        let entries: Vec<ClosureEntry> = serde_json::from_reader(
-            fs::File::open(path).with_context(|| format!("Failed to open {}", path.display()))?,
-        )
-        .with_context(|| format!("Failed to parse runtime input at {}", path.display()))?;
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("Failed to read {}", path.display()))?;
+        let entries: Vec<ClosureEntry> = serde_json::from_str(&content)
+            .with_context(|| format!("Failed to parse runtime input at {}", path.display()))?;
 
         let mut paths = BTreeSet::new();
         let mut references = BTreeMap::new();
