@@ -17,9 +17,7 @@ jobs:
       stdout: ${{ steps.nix-eval-jobs.outputs.stdout }}
     steps:
       - uses: actions/checkout@v7
-      - uses: samueldr/lix-gha-installer-action@v2025-10-27
-        with:
-          diagnostic-endpoint: ""
+      - uses: samueldr/lix-gha-installer-action@v2026-06-15
       - name: Run nix-eval-jobs
         id: nix-eval-jobs
         run: |
@@ -38,9 +36,7 @@ jobs:
         derivation: ${{ fromJson(needs.eval.outputs.stdout) }}
     steps:
       - uses: actions/checkout@v7
-      - uses: samueldr/lix-gha-installer-action@v2025-10-27
-        with:
-          diagnostic-endpoint: ""
+      - uses: samueldr/lix-gha-installer-action@v2026-06-15
       - name: Build ${{ matrix.derivation.attr }}
         run: nix-build release.nix -A ${{ matrix.derivation.attr }}
         if: ${{ ! matrix.derivation.isCached }}
