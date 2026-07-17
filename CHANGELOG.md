@@ -4,6 +4,9 @@
 
 ### Added
 
+- Added emitting a CycloneDX dependency graph spanning runtime dependencies,
+  vendored language-level SBOMs' graphs, and optionally build-time dependencies
+  via the `includeBuildtimeDependencies` flag.
 - Added support for compound licenses from Nixpkgs. Compound licenses are now
   included as SPDX expressions in the SBOM.
 - Added support for CycloneDX v1.7.

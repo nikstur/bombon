@@ -7,7 +7,9 @@ use itertools::Itertools;
 use regex::RegexSet;
 
 use crate::buildtime_input::BuildtimeInput;
-use crate::cyclonedx::{CycloneDXBom, CycloneDXComponents};
+use crate::cyclonedx::{
+    CycloneDXBom, CycloneDXComponents, CycloneDXDependencies, VendoredDependencies,
+};
 use crate::derivation::Derivation;
 use crate::runtime_input::RuntimeInput;
 
@@ -33,7 +35,7 @@ pub fn transform(
     // Augment the runtime input with information from the buildtime input. The buildtime input,
     // however, is not a strict superset of the runtime input. This has to do with how we query the
     // buildinputs from Nix and how dependencies can "hide" in String Contexts.
-    let runtime_derivations = runtime_input.0.iter().map(|store_path| {
+    let runtime_derivations = runtime_input.paths.iter().map(|store_path| {
         buildtime_input
             .0
             .get(store_path)
@@ -45,7 +47,7 @@ pub fn transform(
         .0
         .clone()
         .into_values()
-        .filter(|derivation| !runtime_input.0.contains(&derivation.path))
+        .filter(|derivation| !runtime_input.paths.contains(&derivation.path))
         .unique_by(|d| d.name.clone().unwrap_or(d.path.clone()));
 
     let all_derivations: Box<dyn Iterator<Item = Derivation>> = if include_buildtime_dependencies {
@@ -75,16 +77,27 @@ pub fn transform(
     let mut components = CycloneDXComponents::from_derivations(all_derivations);
 
     // Augment the components with those retrieved from the `sbom` passthru attribute of the
-    // derivations.
+    // derivations, preserving the (language-level) dependency edges those SBOMs declare.
+    let mut vendored_dependencies = VendoredDependencies::new();
     for derivation in buildtime_input.0.values() {
         if let Some(sbom_path) = &derivation.vendored_sbom {
-            components.extend_from_directory(sbom_path)?;
+            vendored_dependencies
+                .extend(components.extend_from_directory(sbom_path, &derivation.path)?);
         }
     }
 
     components.deduplicate();
 
-    let bom = CycloneDXBom::build(target_derivation, components, output);
+    let dependencies = CycloneDXDependencies::assemble(
+        &components,
+        &target_derivation,
+        &runtime_input,
+        &buildtime_input,
+        include_buildtime_dependencies,
+        vendored_dependencies,
+    );
+
+    let bom = CycloneDXBom::build(target_derivation, components, dependencies, output);
     let mut file = File::create(output)
         .with_context(|| format!("Failed to create file {}", output.display()))?;
     file.write_all(&bom.serialize()?)?;

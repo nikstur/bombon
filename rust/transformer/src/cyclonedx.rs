@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Into;
 use std::fs;
 use std::path::Path;
@@ -15,6 +15,7 @@ use cyclonedx_bom::models::component::{Classification, Component, Components, Cp
 use cyclonedx_bom::models::component::{
     ComponentEvidence, ConfidenceScore, Identity, IdentityField, Method, Methods, Pedigree,
 };
+use cyclonedx_bom::models::dependency::{Dependencies, Dependency};
 use cyclonedx_bom::models::external_reference::{
     self, ExternalReference, ExternalReferenceType, ExternalReferences,
 };
@@ -25,8 +26,18 @@ use cyclonedx_bom::models::tool::Tools;
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
 
+use crate::buildtime_input::BuildtimeInput;
 use crate::derivation::{self, Derivation, Meta, Src};
 use crate::hash::{self, SriHash};
+use crate::runtime_input::RuntimeInput;
+
+/// Strip the `/nix/store/` prefix to match how component bom-refs are derived from store paths.
+fn bom_ref(store_path: &str) -> String {
+    store_path
+        .strip_prefix("/nix/store/")
+        .unwrap_or(store_path)
+        .to_string()
+}
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -46,19 +57,21 @@ impl CycloneDXBom {
         Ok(Self(Bom::parse_from_json(file)?))
     }
 
-    pub fn build(target: Derivation, components: CycloneDXComponents, output: &Path) -> Self {
+    pub fn build(
+        target: Derivation,
+        components: CycloneDXComponents,
+        dependencies: CycloneDXDependencies,
+        output: &Path,
+    ) -> Self {
         Self(Bom {
             components: Some(components.into()),
+            dependencies: (!dependencies.0.0.is_empty()).then_some(dependencies.0),
             metadata: Some(metadata_from_derivation(target)),
             // Derive a reproducible serial number from the output path. This works because the Nix
             // outPath of the derivation is input addressed and thus reproducible.
             serial_number: Some(derive_serial_number(output.as_os_str().as_encoded_bytes())),
             ..Bom::default()
         })
-    }
-
-    fn components(self) -> Option<Components> {
-        self.0.components
     }
 }
 
@@ -91,8 +104,21 @@ impl CycloneDXComponents {
     }
 
     /// Extend the `Components` with components read from multiple BOMs inside a directory.
-    pub fn extend_from_directory(&mut self, path: impl AsRef<Path>) -> Result<()> {
+    ///
+    /// Returns the `dependencies` graphs declared by those BOMs, so the (language-level)
+    /// edges they carry can be preserved in the aggregate SBOM.
+    ///
+    /// Each vendored BOM's root (`metadata.component`) describes the same artifact as the owning Nix derivation,
+    /// but is never itself emitted as a component. Its bom-ref is therefore remapped to the owning derivation's
+    /// bom-ref so the language-level graph connects to the store-path component instead of dangling on a root that nothing references.
+    pub fn extend_from_directory(
+        &mut self,
+        path: impl AsRef<Path>,
+        owner_path: &str,
+    ) -> Result<VendoredDependencies> {
+        let target_ref = bom_ref(owner_path);
         let mut m = BTreeMap::new();
+        let mut dependencies = Vec::new();
 
         // Insert the components from the original SBOM
         for component in self.0.0.clone() {
@@ -109,19 +135,50 @@ impl CycloneDXComponents {
             .flatten()
         {
             let bom = CycloneDXBom::from_file(entry.path())?;
-            if let Some(components) = bom.components() {
-                for component in components.0 {
+            let root_ref = bom
+                .0
+                .metadata
+                .as_ref()
+                .and_then(|meta| meta.component.as_ref())
+                .and_then(|component| component.bom_ref.clone());
+            if let Some(components) = &bom.0.components {
+                for component in &components.0 {
                     let key = component
                         .bom_ref
                         .clone()
                         .unwrap_or_else(|| component.name.to_string());
-                    m.entry(key).or_insert(component);
+                    m.entry(key).or_insert_with(|| component.clone());
+                }
+            }
+            if let Some(deps) = bom.0.dependencies {
+                for mut dep in deps.0 {
+                    if let Some(root) = &root_ref {
+                        if dep.dependency_ref == *root {
+                            dep.dependency_ref.clone_from(&target_ref);
+                        }
+                        for sub in &mut dep.dependencies {
+                            if sub == root {
+                                sub.clone_from(&target_ref);
+                            }
+                        }
+                    }
+                    dependencies.push(dep);
                 }
             }
         }
 
         self.0.0 = m.into_values().collect();
-        Ok(())
+        Ok(VendoredDependencies(dependencies))
+    }
+
+    /// The set of references of the components currently held.
+    /// Keeps the dependency graph valid: edges to/from absent components are dropped.
+    pub fn bom_refs(&self) -> BTreeSet<String> {
+        self.0
+            .0
+            .iter()
+            .map(|c| c.bom_ref.clone().unwrap_or_else(|| c.name.to_string()))
+            .collect()
     }
 
     // Deduplicate components.
@@ -150,6 +207,104 @@ impl From<CycloneDXComponents> for Components {
     }
 }
 
+/// The (language-level) dependency edges carried by vendored SBOMs, before they are
+/// reconciled against the components that actually end up in the final BOM.
+#[derive(Default)]
+pub struct VendoredDependencies(Vec<Dependency>);
+
+impl VendoredDependencies {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Merge in the edges from another set of vendored dependencies.
+    pub fn extend(&mut self, other: VendoredDependencies) {
+        self.0.extend(other.0);
+    }
+}
+
+pub struct CycloneDXDependencies(Dependencies);
+
+impl CycloneDXDependencies {
+    /// Assemble the `CycloneDX` dependency graph. Three sources of edges are combined:
+    ///   - the Nix runtime reference graph (from `exportReferencesGraph`), keyed by store path
+    ///   - the Nix build-time reference graph (each derivation's direct build inputs)
+    ///   - the language-level graphs carried by the vendored SBOMs, keyed by purl
+    ///
+    /// Edges are restricted to refs that actually exist in the final BOM, so the graph stays
+    /// valid after filtering and deduplication. Entries are merged by ref so no `dependency_ref`
+    /// appears twice.
+    pub fn assemble(
+        components: &CycloneDXComponents,
+        target_derivation: &Derivation,
+        runtime_input: &RuntimeInput,
+        buildtime_input: &BuildtimeInput,
+        include_buildtime_dependencies: bool,
+        vendored_dependencies: VendoredDependencies,
+    ) -> Self {
+        let mut present = components.bom_refs();
+        present.insert(bom_ref(&target_derivation.path));
+
+        let mut graph: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for (path, references) in &runtime_input.references {
+            let dependent = bom_ref(path);
+            if !present.contains(&dependent) {
+                continue;
+            }
+            let entry = graph.entry(dependent).or_default();
+            for reference in references {
+                let dependency = bom_ref(reference);
+                if present.contains(&dependency) {
+                    entry.insert(dependency);
+                }
+            }
+        }
+        if include_buildtime_dependencies {
+            for derivation in buildtime_input.0.values() {
+                let dependent = bom_ref(&derivation.path);
+                if !present.contains(&dependent) {
+                    continue;
+                }
+                let entry = graph.entry(dependent.clone()).or_default();
+                for reference in &derivation.build_references {
+                    let dependency = bom_ref(reference);
+                    if dependency != dependent && present.contains(&dependency) {
+                        entry.insert(dependency);
+                    }
+                }
+            }
+        }
+        for dependency in vendored_dependencies.0 {
+            if !present.contains(&dependency.dependency_ref) {
+                continue;
+            }
+            let entry = graph.entry(dependency.dependency_ref).or_default();
+            for sub in dependency.dependencies {
+                if present.contains(&sub) {
+                    entry.insert(sub);
+                }
+            }
+        }
+
+        // Declare every component as a node, including leaves with no dependencies of
+        // their own: the CycloneDX spec (as required by BSI TR-03183-2 §5.1) mandates
+        // that such components appear as empty elements in the dependency graph.
+        for reference in &present {
+            graph.entry(reference.clone()).or_default();
+        }
+
+        Self(Dependencies(
+            graph
+                .into_iter()
+                .map(|(dependency_ref, dependencies)| Dependency {
+                    dependency_ref,
+                    dependencies: dependencies.into_iter().collect(),
+                })
+                .collect(),
+        ))
+    }
+}
+
 struct CycloneDXComponent(Component);
 
 impl CycloneDXComponent {
@@ -165,13 +320,7 @@ impl CycloneDXComponent {
             Classification::Application,
             &name,
             &version,
-            Some(
-                derivation
-                    .path
-                    .strip_prefix("/nix/store/")
-                    .unwrap_or(&derivation.path)
-                    .to_string(),
-            ),
+            Some(bom_ref(&derivation.path)),
         );
         component.scope = Some(Scope::Required);
         component.purl = Purl::new("nix", &name, &version).ok();
