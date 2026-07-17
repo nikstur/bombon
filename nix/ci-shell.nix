@@ -4,8 +4,8 @@ let
 in
 pkgs.mkShell {
   packages = [
-    pkgs.lon
-    pkgs.lixPackageSets.latest.nix-eval-jobs
+    pkgs.nix-eval-jobs
+    pkgs.jq
   ];
 
   shellHook = ''
