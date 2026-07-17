@@ -18,6 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: samueldr/lix-gha-installer-action@v2026-06-15
+      - uses: Mic92/hestia@v2
+        with:
+          upstream-cache-filter: true
       - name: Run nix-eval-jobs
         id: nix-eval-jobs
         run: |
@@ -36,10 +39,16 @@ jobs:
         derivation: ${{ fromJson(needs.eval.outputs.stdout) }}
     steps:
       - uses: actions/checkout@v7
-      - uses: samueldr/lix-gha-installer-action@v2026-06-15
-      - name: Build ${{ matrix.derivation.attr }}
-        run: nix-build release.nix -A ${{ matrix.derivation.attr }}
         if: ${{ ! matrix.derivation.isCached }}
+      - uses: samueldr/lix-gha-installer-action@v2026-06-15
+        if: ${{ ! matrix.derivation.isCached }}
+      - uses: Mic92/hestia@v2
+        if: ${{ ! matrix.derivation.isCached }}
+        with:
+          upstream-cache-filter: true
+      - name: Build ${{ matrix.derivation.attr }}
+        if: ${{ ! matrix.derivation.isCached }}
+        run: nix-build release.nix -A ${{ matrix.derivation.attr }}
 
   # Only here for branch protection rules
   build-status:
