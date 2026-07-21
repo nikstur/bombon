@@ -86,4 +86,61 @@
         };
       }
     );
+
+  # Add a passthru derivation that generates a CycloneDX SBOM to a derivation
+  # `package` that vendors its npm dependencies with `fetchNpmDeps` and
+  # installs them with `npmConfigHook` (e.g. anything built with
+  # `buildNpmPackage`).
+  #
+  # `npmConfigHook` installs the vendored dependencies into `node_modules`, so
+  # `npm sbom` can describe the exact dependency tree without any additional
+  # tooling.
+  npm =
+    package:
+    {
+      pkgs,
+      includeBuildtimeDependencies ? false,
+    }:
+    package.overrideAttrs (
+      finalAttrs: previousAttrs: {
+        passthru = (previousAttrs.passthru or { }) // {
+          bombonVendoredSbom = finalAttrs.finalPackage.overrideAttrs (previousAttrs: {
+            pname = previousAttrs.pname + "-bombon-vendored-sbom";
+            outputs = [ "out" ];
+            phases = [
+              "unpackPhase"
+              "patchPhase"
+              "configurePhase"
+              "buildPhase"
+              "installPhase"
+            ];
+
+            buildPhase = ''
+              if [ -n "''${npmRoot-}" ]; then
+                cd "$npmRoot"
+              fi
+
+              npm sbom \
+                --sbom-format cyclonedx \
+                --sbom-type application \
+                ''${npmWorkspace:+--workspace="$npmWorkspace"} \
+            ''
+            # Dev dependencies are only used to build the package, so they are
+            # buildtime dependencies.
+            + pkgs.lib.optionalString (!includeBuildtimeDependencies) " --omit dev"
+            + " > vendored-sbom.cdx.json";
+
+            installPhase = ''
+              mkdir -p $out
+              install -m444 vendored-sbom.cdx.json $out/${previousAttrs.pname}.cdx.json
+            '';
+
+            separateDebugInfo = false;
+
+            # The SBOM derivation must not carry a vendored SBOM of its own.
+            passthru = removeAttrs (previousAttrs.passthru or { }) [ "bombonVendoredSbom" ];
+          });
+        };
+      }
+    );
 }
