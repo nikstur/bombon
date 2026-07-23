@@ -7,6 +7,7 @@
 let
   rustPassthru = pkg: passthruVendoredSbom.rust pkg { inherit pkgs; };
   npmPassthru = pkg: passthruVendoredSbom.npm pkg { inherit pkgs; };
+  goPassthru = pkg: passthruVendoredSbom.go pkg { inherit pkgs; };
 
   buildtimeOptions = {
     includeBuildtimeDependencies = true;
@@ -99,6 +100,17 @@ let
     {
       name = "pyright-buildtime";
       drv = npmPassthru pyright;
+      options = buildtimeOptions;
+    }
+
+    {
+      name = "age";
+      drv = goPassthru age;
+      options = { };
+    }
+    {
+      name = "age-buildtime";
+      drv = goPassthru age;
       options = buildtimeOptions;
     }
 
