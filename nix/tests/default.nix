@@ -85,7 +85,7 @@ let
       options = { };
     }
     {
-      name = "cloud-hypervisor";
+      name = "cloud-hypervisor-buildtime";
       drv = rustPassthru cloud-hypervisor;
       options = buildtimeOptions;
     }
