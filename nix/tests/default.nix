@@ -6,6 +6,8 @@
 
 let
   rustPassthru = pkg: passthruVendoredSbom.rust pkg { inherit pkgs; };
+  npmPassthru = pkg: passthruVendoredSbom.npm pkg { inherit pkgs; };
+  goPassthru = pkg: passthruVendoredSbom.go pkg { inherit pkgs; };
 
   buildtimeOptions = {
     includeBuildtimeDependencies = true;
@@ -87,6 +89,28 @@ let
     {
       name = "cloud-hypervisor-buildtime";
       drv = rustPassthru cloud-hypervisor;
+      options = buildtimeOptions;
+    }
+
+    {
+      name = "pyright";
+      drv = npmPassthru pyright;
+      options = { };
+    }
+    {
+      name = "pyright-buildtime";
+      drv = npmPassthru pyright;
+      options = buildtimeOptions;
+    }
+
+    {
+      name = "age";
+      drv = goPassthru age;
+      options = { };
+    }
+    {
+      name = "age-buildtime";
+      drv = goPassthru age;
       options = buildtimeOptions;
     }
 
