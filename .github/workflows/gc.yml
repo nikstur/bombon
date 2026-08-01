@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: samueldr/lix-gha-installer-action@v2026-06-15
-      - uses: Mic92/hestia@v2
+      - uses: Mic92/hestia@v3
         with:
           upstream-cache-filter: true
       - name: Run garbage collection
