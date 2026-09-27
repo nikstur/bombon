@@ -145,6 +145,72 @@
     );
 
   # Add a passthru derivation that generates a CycloneDX SBOM to a derivation
+  # `package` that vendors its pnpm dependencies with `fetchPnpmDeps` and
+  # installs them with `pnpmConfigHook`.
+  #
+  # `pnpmConfigHook` installs the vendored dependencies into `node_modules`, so
+  # `pnpm sbom` can describe the exact dependency tree without any additional
+  # tooling. `pnpm sbom` is only available from pnpm 11 onwards.
+  pnpm =
+    package:
+    {
+      pkgs,
+      includeBuildtimeDependencies ? false,
+    }:
+    package.overrideAttrs (
+      finalAttrs: previousAttrs: {
+        passthru = (previousAttrs.passthru or { }) // {
+          bombonVendoredSbom = finalAttrs.finalPackage.overrideAttrs (previousAttrs: {
+            pname = previousAttrs.pname + "-bombon-vendored-sbom";
+            # `fetchPnpmDeps` is usually called with `finalAttrs.pname`, so the
+            # renamed `pname` would otherwise produce a new fixed-output
+            # derivation that fetches all dependencies again.
+            inherit (finalAttrs.finalPackage) pnpmDeps;
+            outputs = [ "out" ];
+            phases = [
+              "unpackPhase"
+              "patchPhase"
+              "configurePhase"
+              "buildPhase"
+              "installPhase"
+            ];
+
+            buildPhase = ''
+              if [ -n "''${pnpmRoot-}" ]; then
+                cd "$pnpmRoot"
+              fi
+
+              # Describe the same workspace packages that `pnpmConfigHook` installed.
+              local -a pnpmSbomFlags
+              concatTo pnpmSbomFlags pnpmWorkspaces
+              pnpmSbomFlags=("''${pnpmSbomFlags[@]/#/--filter=}")
+
+              pnpm sbom \
+                --sbom-format cyclonedx \
+                --sbom-spec-version 1.5 \
+                --sbom-type application \
+                "''${pnpmSbomFlags[@]}" \
+            ''
+            # Dev dependencies are only used to build the package, so they are
+            # buildtime dependencies.
+            + pkgs.lib.optionalString (!includeBuildtimeDependencies) " --prod"
+            + " > vendored-sbom.cdx.json";
+
+            installPhase = ''
+              mkdir -p $out
+              install -m444 vendored-sbom.cdx.json $out/${previousAttrs.pname}.cdx.json
+            '';
+
+            separateDebugInfo = false;
+
+            # The SBOM derivation must not carry a vendored SBOM of its own.
+            passthru = removeAttrs (previousAttrs.passthru or { }) [ "bombonVendoredSbom" ];
+          });
+        };
+      }
+    );
+
+  # Add a passthru derivation that generates a CycloneDX SBOM to a derivation
   # `package` built with `buildGoModule`.
   #
   # `cyclonedx-gomod` reads the build info embedded in the compiled Go
