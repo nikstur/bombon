@@ -7,6 +7,7 @@
 let
   rustPassthru = pkg: passthruVendoredSbom.rust pkg { inherit pkgs; };
   npmPassthru = pkg: passthruVendoredSbom.npm pkg { inherit pkgs; };
+  pnpmPassthru = pkg: passthruVendoredSbom.pnpm pkg { inherit pkgs; };
   goPassthru = pkg: passthruVendoredSbom.go pkg { inherit pkgs; };
 
   buildtimeOptions = {
@@ -101,6 +102,23 @@ let
       name = "pyright-buildtime";
       drv = npmPassthru pyright;
       options = buildtimeOptions;
+    }
+
+    {
+      name = "taze";
+      drv = pnpmPassthru taze;
+      options = { };
+    }
+    {
+      name = "taze-buildtime";
+      drv = pnpmPassthru taze;
+      options = buildtimeOptions;
+    }
+
+    {
+      name = "lessc";
+      drv = pnpmPassthru lessc;
+      options = { };
     }
 
     {
