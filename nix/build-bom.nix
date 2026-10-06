@@ -31,6 +31,7 @@ runCommand "${drv.name}.cdx.json"
   ''
     bombon-transformer ${drv} \
       ${toString args} \
+      --serial-number-seed "$out" \
       ${buildtimeDependencies drv extraPaths} \
       ${runtimeDependencies drv extraPaths} \
       tmp.cdx.json

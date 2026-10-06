@@ -16,6 +16,7 @@ use crate::runtime_input::RuntimeInput;
 pub fn transform(
     include_buildtime_dependencies: bool,
     exclude: &[String],
+    serial_number_seed: &str,
     target_path: &str,
     buildtime_input_path: &Path,
     runtime_input_path: &Path,
@@ -97,7 +98,12 @@ pub fn transform(
         vendored_dependencies,
     );
 
-    let bom = CycloneDXBom::build(target_derivation, components, dependencies, output);
+    let bom = CycloneDXBom::build(
+        target_derivation,
+        components,
+        dependencies,
+        serial_number_seed,
+    );
     let mut file = File::create(output)
         .with_context(|| format!("Failed to create file {}", output.display()))?;
     file.write_all(&bom.serialize()?)?;

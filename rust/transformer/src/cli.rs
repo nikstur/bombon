@@ -17,6 +17,12 @@ pub struct Cli {
     #[arg(short, long)]
     exclude: Vec<String>,
 
+    /// Data to derive the serial number of the SBOM from.
+    ///
+    /// The same seed always yields the same serial number.
+    #[arg(long)]
+    serial_number_seed: String,
+
     /// Path to target derivation
     target: String,
 
@@ -35,6 +41,7 @@ impl Cli {
         transform(
             self.include_buildtime_dependencies,
             &self.exclude,
+            &self.serial_number_seed,
             &self.target,
             &self.buildtime_input,
             &self.runtime_input,
