@@ -90,17 +90,21 @@ fn derive_serial_number(data: &[u8]) -> UrnUuid {
     UrnUuid::from(uuid)
 }
 
-pub struct CycloneDXComponents(Components);
+/// The components of a BOM, together with the references of those that describe a derivation.
+pub struct CycloneDXComponents(Components, BTreeSet<String>);
 
 impl CycloneDXComponents {
     pub fn from_derivations(derivations: impl IntoIterator<Item = Derivation>) -> Self {
-        Self(Components(
-            derivations
-                .into_iter()
-                .map(CycloneDXComponent::from_derivation)
-                .map(CycloneDXComponent::into)
-                .collect(),
-        ))
+        let components: Vec<Component> = derivations
+            .into_iter()
+            .map(CycloneDXComponent::from_derivation)
+            .map(CycloneDXComponent::into)
+            .collect();
+        let references = components
+            .iter()
+            .filter_map(|c| c.bom_ref.clone())
+            .collect();
+        Self(Components(components), references)
     }
 
     /// Extend the `Components` with components read from multiple BOMs inside a directory.
@@ -185,19 +189,28 @@ impl CycloneDXComponents {
     //
     // Remove entries with duplicate PURLs, falling back to bom-refs, falling back to the name of
     // the component.
+    //
+    // Components that describe a derivation are never duplicates of each other, because each of
+    // them is a different store path. Their PURL, however, only consists of a name and a
+    // version, which the outputs of a derivation and sometimes even different derivations share.
+    // They are thus only deduplicated by their bom-ref.
     pub fn deduplicate(&mut self) {
-        self.0.0 = self
+        let components = self
             .0
             .0
             .clone()
             .into_iter()
             .unique_by(|c: &Component| {
-                c.purl.as_ref().map_or(
-                    c.bom_ref.clone().unwrap_or(c.name.to_string()),
-                    std::string::ToString::to_string,
-                )
+                let reference = c.bom_ref.clone().unwrap_or(c.name.to_string());
+                if self.1.contains(&reference) {
+                    return reference;
+                }
+                c.purl
+                    .as_ref()
+                    .map_or(reference, std::string::ToString::to_string)
             })
             .collect();
+        self.0.0 = components;
     }
 }
 
@@ -542,4 +555,49 @@ fn convert_patches(patches: &[String]) -> Patches {
         })
         .collect::<Vec<_>>();
     Patches(cyclonedx_patches)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn derivation(path: &str) -> Derivation {
+        Derivation {
+            path: path.to_string(),
+            pname: Some("openssl".to_string()),
+            version: Some("3.6.4".to_string()),
+            ..Derivation::default()
+        }
+    }
+
+    fn vendored(bom_ref: &str) -> Component {
+        let mut component = Component::new(
+            Classification::Library,
+            "serde",
+            "1.0.219",
+            Some(bom_ref.to_string()),
+        );
+        component.purl = Purl::new("cargo", "serde", "1.0.219").ok();
+        component
+    }
+
+    #[test]
+    fn deduplicate() {
+        let out = "/nix/store/3xcc0ljbmnp1nlk0pnjiqrbqzm7m3ag0-openssl-3.6.4";
+        let bin = "/nix/store/44gxi8liiqmd6fbnr2b7bbxl0dkfb52m-openssl-3.6.4-bin";
+        let mut components =
+            CycloneDXComponents::from_derivations([derivation(out), derivation(bin)]);
+        components.0.0.extend([
+            vendored("registry+https://github.com/rust-lang/crates.io-index#serde@1.0.219"),
+            vendored("pkg:cargo/serde@1.0.219"),
+        ]);
+
+        components.deduplicate();
+
+        // The outputs of a derivation share a PURL but are different components.
+        assert!(components.bom_refs().contains(&bom_ref(out)));
+        assert!(components.bom_refs().contains(&bom_ref(bin)));
+        // Vendored components with the same PURL are the same component.
+        assert_eq!(components.0.0.len(), 3);
+    }
 }
