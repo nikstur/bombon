@@ -20,6 +20,14 @@
   included as SPDX expressions in the SBOM.
 - Added support for CycloneDX v1.7.
 
+### Fixed
+
+- Components that describe a derivation are not deduplicated by their PURL
+  anymore. The PURL only consists of the name and the version, so all but one
+  output of a derivation with multiple outputs (e.g. `out`, `bin` and `dev`)
+  were removed from the SBOM, together with the dependencies on them.
+  Components from vendored SBOMs are still deduplicated by their PURL.
+
 ## 0.4.0
 
 ### Added
