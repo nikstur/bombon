@@ -19,7 +19,7 @@ let
     lib.optionals includeBuildtimeDependencies [
       "--include-buildtime-dependencies"
     ]
-    ++ lib.optionals (excludes != [ ]) (lib.map (e: "--exclude ${e}") excludes);
+    ++ lib.optionals (excludes != [ ]) (lib.map (e: "--exclude=${lib.escapeShellArg e}") excludes);
 in
 runCommand "${drv.name}.cdx.json"
   {

@@ -28,6 +28,14 @@ let
       drv = hello;
       options = buildtimeOptions;
     }
+    # A pattern with characters that are special to the shell and a leading dash
+    {
+      name = "hello-excludes";
+      drv = hello;
+      options = {
+        excludes = [ "-(libunistring|libidn2)-[0-9.]*$" ];
+      };
+    }
 
     {
       name = "python3";

@@ -20,6 +20,12 @@
   included as SPDX expressions in the SBOM.
 - Added support for CycloneDX v1.7.
 
+### Fixed
+
+- Fixed `excludes` for patterns with characters that are special to the shell,
+  like `(`, `|`, `*` or a space, and for patterns that begin with a dash. The
+  patterns were not quoted, so building the SBOM failed.
+
 ## 0.4.0
 
 ### Added
