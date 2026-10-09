@@ -61,15 +61,16 @@ impl CycloneDXBom {
         target: Derivation,
         components: CycloneDXComponents,
         dependencies: CycloneDXDependencies,
-        output: &Path,
+        serial_number_seed: &str,
     ) -> Self {
         Self(Bom {
             components: Some(components.into()),
             dependencies: (!dependencies.0.0.is_empty()).then_some(dependencies.0),
             metadata: Some(metadata_from_derivation(target)),
-            // Derive a reproducible serial number from the output path. This works because the Nix
-            // outPath of the derivation is input addressed and thus reproducible.
-            serial_number: Some(derive_serial_number(output.as_os_str().as_encoded_bytes())),
+            // Derive a reproducible serial number from the seed. When the seed is the Nix outPath
+            // of the SBOM derivation, this works because the outPath is input addressed and thus
+            // reproducible while still being unique to the SBOM.
+            serial_number: Some(derive_serial_number(serial_number_seed.as_bytes())),
             ..Bom::default()
         })
     }
@@ -542,4 +543,24 @@ fn convert_patches(patches: &[String]) -> Patches {
         })
         .collect::<Vec<_>>();
     Patches(cyclonedx_patches)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serial_number_from_seed() {
+        let a = "/nix/store/bqwmxjkrkmn1kqivq4pr053j68biq4k4-hello-2.12.1.cdx.json";
+        let b = "/nix/store/lcxn67gbjdcr6bjf1rcs03ywa7gcslr2-git-2.47.0.cdx.json";
+
+        assert_eq!(
+            derive_serial_number(a.as_bytes()),
+            derive_serial_number(a.as_bytes())
+        );
+        assert_ne!(
+            derive_serial_number(a.as_bytes()),
+            derive_serial_number(b.as_bytes())
+        );
+    }
 }
