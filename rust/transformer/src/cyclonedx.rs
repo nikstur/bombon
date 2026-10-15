@@ -53,8 +53,10 @@ impl CycloneDXBom {
 
     /// Read a `CycloneDXBom` from a path.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
-        let file = fs::File::open(path)?;
-        Ok(Self(Bom::parse_from_json(file)?))
+        let content = fs::read(&path)
+            .with_context(|| format!("Failed to open {}", path.as_ref().display()))?;
+        let value = serde_json::from_slice(&content).context("Failed to parse cyclonedx")?;
+        Ok(Self(Bom::parse_json_value(value)?))
     }
 
     pub fn build(
