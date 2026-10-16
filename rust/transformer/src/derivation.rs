@@ -15,6 +15,10 @@ pub struct Derivation {
     pub patches: Vec<String>,
     #[serde(default)]
     pub build_references: Vec<String>,
+    #[serde(default)]
+    pub host_inputs: Vec<String>,
+    #[serde(default)]
+    pub propagated_host_inputs: Vec<String>,
 }
 
 impl Derivation {

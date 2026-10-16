@@ -119,6 +119,13 @@ An SBOM built from this new derivation will now include the vendored dependencie
   but you still want their contents to appear in the SBOM. The `extraPaths`
   will appear as components of the main derivation.
 - `includeBuildtimeDependencies`: boolean flag to include buildtime dependencies in output.
+- `includeStaticLibraries`: boolean flag to include the libraries that static
+  derivations in the runtime closure link in, on by default. A static binary
+  keeps no reference to them, so they are otherwise missing. This adds the
+  build inputs of each static derivation, what those inputs propagate, and the
+  libc of its compiler. Nix doesn't record whether a build input was linked in,
+  so an input used for something else, like `bash` for a package's scripts,
+  shows up too.
 - `excludes`: a list of regex patterns of store paths to exclude from the final
   SBOM.
 

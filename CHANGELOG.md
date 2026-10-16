@@ -19,6 +19,9 @@
 - Added support for compound licenses from Nixpkgs. Compound licenses are now
   included as SPDX expressions in the SBOM.
 - Added support for CycloneDX v1.7.
+- Added the libraries that static derivations link in, like musl or a static
+  zlib. They leave no reference in the output, so the runtime closure missed
+  them. Set `includeStaticLibraries = false` to leave them out.
 
 ### Fixed
 
