@@ -123,6 +123,22 @@ let
       options = buildtimeOptions;
     }
 
+    # A store that is not writable, like a store used from the Nix store
+    {
+      name = "taze-read-only-store";
+      drv = pnpmPassthru (
+        taze.overrideAttrs {
+          preConfigure = ''
+            makeStoreReadOnly() {
+              chmod -R a-w "$(pnpm config get store-dir)"
+            }
+            postConfigureHooks+=(makeStoreReadOnly)
+          '';
+        }
+      );
+      options = { };
+    }
+
     {
       name = "lessc";
       drv = pnpmPassthru lessc;
