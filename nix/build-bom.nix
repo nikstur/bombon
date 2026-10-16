@@ -23,6 +23,10 @@ let
 in
 runCommand "${drv.name}.cdx.json"
   {
+    __structuredAttrs = true;
+    # SBOMs semantically don't have a closure.
+    unsafeDiscardReferences.out = true;
+
     nativeBuildInputs = [
       transformer
       cyclonedx-cli
