@@ -22,6 +22,9 @@
 
 ### Fixed
 
+- Fixed `passthruVendoredSbom.pnpm` for packages that use their pnpm store
+  directly from the read-only Nix store. `pnpm sbom` opens the store index
+  read-write, so it failed with `attempt to write a readonly database`.
 - Fixed `excludes` for patterns with characters that are special to the shell,
   like `(`, `|`, `*` or a space, and for patterns that begin with a dash. The
   patterns were not quoted, so building the SBOM failed.
