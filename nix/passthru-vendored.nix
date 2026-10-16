@@ -185,6 +185,24 @@
               concatTo pnpmSbomFlags pnpmWorkspaces
               pnpmSbomFlags=("''${pnpmSbomFlags[@]/#/--filter=}")
 
+              # `pnpm sbom` opens the store index read-write, which fails when the
+              # store is used in place from the read-only Nix store. Use a copy
+              # of the index and link the rest of the store.
+              local store index version
+              store=$(pnpm config get store-dir)
+              for index in "$store"/v*/index.db; do
+                [ -e "$index" ] || continue
+                [ -w "$index" ] && [ -w "''${index%/*}" ] && continue
+                version=$(basename "$(dirname "$index")")
+                mkdir -p "$TMPDIR/pnpm-store/$version"
+                ln -s "$store/$version"/* "$TMPDIR/pnpm-store/$version"/
+                rm "$TMPDIR/pnpm-store/$version/index.db"
+                install -m644 "$index" "$TMPDIR/pnpm-store/$version/index.db"
+              done
+              if [ -d "$TMPDIR/pnpm-store" ]; then
+                pnpmSbomFlags+=(--store-dir "$TMPDIR/pnpm-store")
+              fi
+
               pnpm sbom \
                 --sbom-format cyclonedx \
                 --sbom-spec-version 1.5 \
