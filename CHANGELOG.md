@@ -25,6 +25,9 @@
 - Fixed `excludes` for patterns with characters that are special to the shell,
   like `(`, `|`, `*` or a space, and for patterns that begin with a dash. The
   patterns were not quoted, so building the SBOM failed.
+- Fixed building an SBOM realising the whole build closure of the package,
+  even without `includeBuildtimeDependencies`. Only the patches and vendored
+  SBOMs that the transformer reads are now built or substituted.
 
 ## 0.4.0
 
