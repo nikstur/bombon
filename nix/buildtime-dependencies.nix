@@ -118,13 +118,28 @@ let
 
   allBuildtimeDerivations = lib.flatten (map buildtimeDerivations allDrvs);
 
+  allFields = map (item: fields item.drv) allBuildtimeDerivations;
+
+  # The transformer reads only the patches and vendored SBOMs. The other store
+  # paths are just names to it, and with their context building the SBOM
+  # would realise the whole build closure.
   unformattedJson = writeText "${drv.name}-unformatted-buildtime-dependencies.json" (
-    builtins.toJSON (map (item: (fields item.drv)) allBuildtimeDerivations)
+    builtins.unsafeDiscardStringContext (builtins.toJSON allFields)
   );
+
+  readPaths = lib.concatMap (
+    f: f.patches ++ lib.optional (f ? vendoredSbom) f.vendoredSbom
+  ) allFields;
 
 in
 
 # Format the json so that the transformer can better report where errors occur
-runCommand "${drv.name}-buildtime-dependencies.json" { } ''
-  ${jq}/bin/jq < ${unformattedJson} > "$out"
-''
+runCommand "${drv.name}-buildtime-dependencies.json"
+  {
+    # There are too many paths for an environment variable.
+    __structuredAttrs = true;
+    inherit readPaths;
+  }
+  ''
+    ${jq}/bin/jq < ${unformattedJson} > "$out"
+  ''
