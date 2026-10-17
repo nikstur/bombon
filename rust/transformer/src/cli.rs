@@ -3,13 +3,17 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Parser;
 
-use crate::transform::transform;
+use crate::transform::{Include, transform};
 
 #[derive(Parser)]
 pub struct Cli {
     /// Include buildtime dependencies in output
     #[arg(long)]
     include_buildtime_dependencies: bool,
+
+    /// Include the libraries that static runtime dependencies link in
+    #[arg(long)]
+    include_static_libraries: bool,
 
     /// Regex pattern of store paths to exclude from the final SBOM.
     ///
@@ -39,7 +43,10 @@ pub struct Cli {
 impl Cli {
     pub fn call(self) -> Result<()> {
         transform(
-            self.include_buildtime_dependencies,
+            Include {
+                buildtime_dependencies: self.include_buildtime_dependencies,
+                static_libraries: self.include_static_libraries,
+            },
             &self.exclude,
             &self.serial_number_seed,
             &self.target,

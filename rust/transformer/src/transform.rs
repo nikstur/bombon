@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
@@ -13,8 +14,15 @@ use crate::cyclonedx::{
 use crate::derivation::Derivation;
 use crate::runtime_input::RuntimeInput;
 
+/// What to include in the SBOM besides the runtime closure.
+#[derive(Clone, Copy)]
+pub struct Include {
+    pub buildtime_dependencies: bool,
+    pub static_libraries: bool,
+}
+
 pub fn transform(
-    include_buildtime_dependencies: bool,
+    include: Include,
     exclude: &[String],
     serial_number_seed: &str,
     target_path: &str,
@@ -33,16 +41,40 @@ pub fn transform(
 
     let runtime_input = RuntimeInput::from_file(runtime_input_path)?;
 
+    // Add the libraries that static derivations in the runtime closure link in, and what those
+    // libraries propagate in turn, as stdenv does when it builds against them.
+    let mut linked_paths = BTreeSet::new();
+    if include.static_libraries {
+        let mut queue: Vec<&String> = runtime_input
+            .paths
+            .iter()
+            .filter_map(|path| buildtime_input.0.get(path))
+            .flat_map(|derivation| &derivation.host_inputs)
+            .collect();
+        while let Some(path) = queue.pop() {
+            if runtime_input.paths.contains(path) || !linked_paths.insert(path.clone()) {
+                continue;
+            }
+            if let Some(derivation) = buildtime_input.0.get(path) {
+                queue.extend(&derivation.propagated_host_inputs);
+            }
+        }
+    }
+
     // Augment the runtime input with information from the buildtime input. The buildtime input,
     // however, is not a strict superset of the runtime input. This has to do with how we query the
     // buildinputs from Nix and how dependencies can "hide" in String Contexts.
-    let runtime_derivations = runtime_input.paths.iter().map(|store_path| {
-        buildtime_input
-            .0
-            .get(store_path)
-            .map(ToOwned::to_owned)
-            .unwrap_or(Derivation::from_store_path(store_path))
-    });
+    let runtime_derivations = runtime_input
+        .paths
+        .iter()
+        .chain(&linked_paths)
+        .map(|store_path| {
+            buildtime_input
+                .0
+                .get(store_path)
+                .cloned()
+                .unwrap_or_else(|| Derivation::from_store_path(store_path))
+        });
 
     let buildtime_derivations = buildtime_input
         .0
@@ -51,7 +83,7 @@ pub fn transform(
         .filter(|derivation| !runtime_input.paths.contains(&derivation.path))
         .unique_by(|d| d.name.clone().unwrap_or(d.path.clone()));
 
-    let all_derivations: Box<dyn Iterator<Item = Derivation>> = if include_buildtime_dependencies {
+    let all_derivations: Box<dyn Iterator<Item = Derivation>> = if include.buildtime_dependencies {
         Box::new(runtime_derivations.chain(buildtime_derivations))
     } else {
         Box::new(runtime_derivations)
@@ -94,7 +126,7 @@ pub fn transform(
         &target_derivation,
         &runtime_input,
         &buildtime_input,
-        include_buildtime_dependencies,
+        include,
         vendored_dependencies,
     );
 

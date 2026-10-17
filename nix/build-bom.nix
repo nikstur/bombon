@@ -11,6 +11,7 @@ drv:
 {
   extraPaths ? [ ],
   includeBuildtimeDependencies ? false,
+  includeStaticLibraries ? true,
   excludes ? [ ],
 }:
 
@@ -19,6 +20,7 @@ let
     lib.optionals includeBuildtimeDependencies [
       "--include-buildtime-dependencies"
     ]
+    ++ lib.optionals includeStaticLibraries [ "--include-static-libraries" ]
     ++ lib.optionals (excludes != [ ]) (lib.map (e: "--exclude=${lib.escapeShellArg e}") excludes);
 in
 runCommand "${drv.name}.cdx.json"

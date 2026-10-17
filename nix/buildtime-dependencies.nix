@@ -51,6 +51,14 @@ let
       operator = item: map wrap (lib.concatLists (drvDeps item.drv));
     };
 
+  # The store paths of the outputs that hold the libraries of `inputs`. Build
+  # inputs are usually dev outputs.
+  libraryPaths =
+    inputs:
+    lib.unique (
+      map (input: (input.lib or input.out).outPath) (lib.filter lib.isDerivation (lib.flatten inputs))
+    );
+
   # Like lib.getAttrs but omit attrs that do not exist.
   optionalGetAttrs =
     names: attrs: lib.genAttrs (builtins.filter (x: lib.hasAttr x attrs) names) (name: attrs.${name});
@@ -74,6 +82,10 @@ let
         else
           "LicenseRef-unknown";
 
+      isStatic = drv.stdenv.hostPlatform.isStatic or false;
+      libc = drv.stdenv.cc.libc or null;
+      propagated = libraryPaths (drv.propagatedBuildInputs or [ ]);
+
       meta = lib.recursiveUpdate drv.meta (
         lib.optionalAttrs (drv.meta ? license) {
           license = if !(lib.isList drv.meta.license) then toSPDX drv.meta.license else drv.meta.license;
@@ -92,6 +104,16 @@ let
       patches = lib.flatten (drv.patches or [ ]);
       # The store paths of this derivation's direct build-time dependencies, so the transformer can emit build-time `dependsOn` edges.
       buildReferences = lib.unique (map (o: o.outPath) (lib.concatLists (drvDeps drv)));
+    }
+    # The libraries a static derivation links in, which leave no reference in
+    # its output, so the runtime closure misses them. That includes the libc of
+    # its compiler.
+    // lib.optionalAttrs isStatic {
+      hostInputs = lib.unique (
+        libraryPaths (drv.buildInputs or [ ]) ++ propagated ++ lib.optional (libc != null) libc.outPath
+      );
+      # The inputs stdenv passes on to whatever builds against this derivation.
+      propagatedHostInputs = propagated;
     }
     // lib.optionalAttrs (drv ? src && drv.src ? urls) {
       src = {

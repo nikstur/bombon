@@ -37,6 +37,13 @@ let
       };
     }
 
+    # Links musl statically
+    {
+      name = "hello-static-libraries";
+      drv = pkgsStatic.hello;
+      options = { };
+    }
+
     {
       name = "python3";
       drv = python3;
