@@ -265,4 +265,29 @@
         };
       }
     );
+
+  python =
+    package:
+    {
+      pkgs,
+      pythonEnv ?
+        let
+          python = pkgs.lib.head package.requiredPythonModules;
+        in
+        python.withPackages (_: package.requiredPythonModules),
+    }:
+    let
+      name = pkgs.lib.getName package;
+    in
+    package.overrideAttrs (
+      _: previousAttrs: {
+        passthru = (previousAttrs.passthru or { }) // {
+          bombonVendoredSbom = pkgs.runCommand "${name}-bombon-vendored-sbom" { } ''
+            mkdir -p "$out"
+            ${pkgs.lib.getExe pkgs.buildPackages.cyclonedx-python} environment --sv 1.5 --output-reproducible \
+              -o "$out/${name}.cdx.json" ${pythonEnv}/bin/python
+          '';
+        };
+      }
+    );
 }

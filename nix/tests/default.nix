@@ -9,6 +9,24 @@ let
   npmPassthru = pkg: passthruVendoredSbom.npm pkg { inherit pkgs; };
   pnpmPassthru = pkg: passthruVendoredSbom.pnpm pkg { inherit pkgs; };
   goPassthru = pkg: passthruVendoredSbom.go pkg { inherit pkgs; };
+  pyPassthru = pkg: passthruVendoredSbom.python pkg { inherit pkgs; };
+
+  pythonScript =
+    let
+      pythonEnv = pkgs.python3.withPackages (ps: [ ps.pyyaml ]);
+    in
+    pkgs.writeShellApplication {
+      name = "yaml-check";
+      runtimeInputs = [ pythonEnv ];
+      text = ''
+        python -c "import yaml"
+      '';
+      passthru = { inherit pythonEnv; };
+    };
+  pythonScriptWithSbom = passthruVendoredSbom.python pythonScript {
+    inherit pkgs;
+    inherit (pythonScript) pythonEnv;
+  };
 
   buildtimeOptions = {
     includeBuildtimeDependencies = true;
@@ -140,6 +158,22 @@ let
       options = buildtimeOptions;
     }
 
+    {
+      name = "yamllint";
+      drv = pyPassthru yamllint;
+      options = { };
+    }
+    {
+      name = "requests";
+      drv = pyPassthru python3Packages.requests;
+      options = { };
+    }
+    {
+      name = "python-script";
+      drv = pythonScriptWithSbom;
+      options = { };
+    }
+
     # Multiple src urls
     {
       name = "kexec-tools";
@@ -178,7 +212,28 @@ let
       ln -s $sbom $out
     '';
 
+  # Only the inspected environment may end up in the SBOM, not the environment
+  # cyclonedx-py itself runs in.
+  checkVendoredPythonComponents =
+    name: drv:
+    pkgs.runCommand "${name}-vendored-components" { nativeBuildInputs = [ pkgs.jq ]; } ''
+      sbom="${buildBom drv { }}"
+      jq -e 'any(.components[]; .purl == "pkg:pypi/pyyaml@${pkgs.python3Packages.pyyaml.version}")' "$sbom"
+      jq -e 'all(.components[]; .purl // "" | startswith("pkg:pypi/cyclonedx") | not)' "$sbom"
+      touch "$out"
+    '';
+
   genAttrsFromDrvs =
     drvs: f: builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.name (f d.drv d.options)) drvs);
 in
 genAttrsFromDrvs testDerivations buildBomAndValidate
+//
+  pkgs.lib.mapAttrs'
+    (
+      name: drv:
+      pkgs.lib.nameValuePair "${name}-vendored-components" (checkVendoredPythonComponents name drv)
+    )
+    {
+      yamllint = pyPassthru pkgs.yamllint;
+      python-script = pythonScriptWithSbom;
+    }
