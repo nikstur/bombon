@@ -107,6 +107,25 @@ The `passthruVendoredSbom.go` function covers packages built with
 myGoPackageWithSbom = bombon.passthruVendoredSbom.go myGoPackage { inherit pkgs; };
 ```
 
+The `passthruVendoredSbom.python` function covers packages built with
+`buildPythonPackage` or `buildPythonApplication`:
+
+```nix
+myPythonPackageWithSbom = bombon.passthruVendoredSbom.python myPythonPackage { inherit pkgs; };
+```
+
+For derivations that are not built with `buildPython*` but use a
+`python.withPackages` environment, for example a script wrapper, pass the
+environment as `pythonEnv`. If possible, expose it as a passthru of your
+derivation:
+
+```nix
+myScriptWithSbom = bombon.passthruVendoredSbom.python myScript {
+  inherit pkgs;
+  inherit (myScript) pythonEnv;
+};
+```
+
 An SBOM built from this new derivation will now include the vendored dependencies.
 
 ## Options
