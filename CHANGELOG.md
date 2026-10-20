@@ -28,6 +28,11 @@
 - Fixed building an SBOM realising the whole build closure of the package,
   even without `includeBuildtimeDependencies`. Only the patches and vendored
   SBOMs that the transformer reads are now built or substituted.
+- Components that describe a derivation are not deduplicated by their PURL
+  anymore. The PURL only consists of the name and the version, so all but one
+  output of a derivation with multiple outputs (e.g. `out`, `bin` and `dev`)
+  were removed from the SBOM, together with the dependencies on them.
+  Components from vendored SBOMs are still deduplicated by their PURL.
 
 ## 0.4.0
 
