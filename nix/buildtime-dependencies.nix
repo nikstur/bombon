@@ -16,18 +16,26 @@ let
 
   # Find the dependencies of a derivation via it's `drvAttrs`.
   #
+  # With `__structuredAttrs`, a dependency can also be in an attribute set or
+  # in a list of attribute sets. For example, `buildEnv` gives its `paths` as
+  # `chosenOutputs`, a list of attribute sets. This is how `bundlerEnv`,
+  # `python3.withPackages` and `perl.withPackages` give their packages. An
+  # attribute set with `outPath` or `__toString` is a string to Nix, so the
+  # walk does not go into it.
+  #
   # Returns a list of all dependencies.
-  drvDeps =
-    drv:
-    lib.mapAttrsToList (
-      _k: v:
-      if lib.isDerivation v then
-        (drvOutputs v)
-      else if lib.isList v then
-        lib.concatMap drvOutputs (lib.filter lib.isDerivation v)
-      else
-        [ ]
-    ) drv.drvAttrs;
+  drvDeps = drv: map valueDeps (lib.attrValues drv.drvAttrs);
+
+  valueDeps =
+    v:
+    if lib.isDerivation v then
+      drvOutputs v
+    else if lib.isList v then
+      lib.concatMap valueDeps v
+    else if lib.isAttrs v && !(v ? outPath) && !(v ? __toString) then
+      lib.concatMap valueDeps (lib.attrValues v)
+    else
+      [ ];
 
   wrap = drv: {
     key = drv.outPath;

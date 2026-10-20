@@ -22,6 +22,10 @@
 
 ### Fixed
 
+- Fixed missing metadata, like licenses, for the packages of environments
+  made with `buildEnv`, like `python3.withPackages`, `perl.withPackages` and
+  `bundlerEnv`. With `__structuredAttrs`, `buildEnv` gives its packages in a
+  list of attribute sets, and bombon did not look into attribute sets.
 - Fixed `excludes` for patterns with characters that are special to the shell,
   like `(`, `|`, `*` or a space, and for patterns that begin with a dash. The
   patterns were not quoted, so building the SBOM failed.

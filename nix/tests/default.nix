@@ -180,5 +180,18 @@ let
 
   genAttrsFromDrvs =
     drvs: f: builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.name (f d.drv d.options)) drvs);
+
+  # `buildEnv` gives its packages in a list of attribute sets. The SBOM must
+  # still have the metadata of these packages.
+  pythonEnv = pkgs.python3.withPackages (ps: [ ps.six ]);
 in
 genAttrsFromDrvs testDerivations buildBomAndValidate
+// {
+  python3-env-metadata =
+    pkgs.runCommand "python3-env-metadata" { nativeBuildInputs = [ pkgs.jq ]; }
+      ''
+        jq -e '.components[] | select(.name == "six") | .licenses | length > 0' \
+          "${buildBomAndValidate pythonEnv { }}"
+        touch $out
+      '';
+}
