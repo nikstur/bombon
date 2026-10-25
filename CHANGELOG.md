@@ -19,6 +19,10 @@
 - Added support for compound licenses from Nixpkgs. Compound licenses are now
   included as SPDX expressions in the SBOM.
 - Added support for CycloneDX v1.7.
+- Added the `scanNodeModules` flag to `buildBom` to add the npm packages
+  installed into the `node_modules` directories of the runtime closure as
+  components, also for packages that are not built with `npmConfigHook` or
+  `pnpmConfigHook`.
 
 ### Fixed
 

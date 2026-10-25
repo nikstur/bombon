@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use cyclonedx_bom::external_models::normalized_string::NormalizedString;
-use cyclonedx_bom::external_models::spdx::SpdxExpression;
+use cyclonedx_bom::external_models::spdx::{SpdxExpression, SpdxIdentifier};
 use cyclonedx_bom::external_models::uri::{Purl, Uri};
 use cyclonedx_bom::models::attached_text::AttachedText;
 use cyclonedx_bom::models::bom::{Bom, UrnUuid};
@@ -24,11 +24,13 @@ use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
 use cyclonedx_bom::models::metadata::Metadata;
 use cyclonedx_bom::models::tool::Tools;
 use itertools::Itertools;
+use purl::GenericPurlBuilder;
 use sha2::{Digest, Sha256};
 
 use crate::buildtime_input::BuildtimeInput;
 use crate::derivation::{self, Derivation, Meta, Src};
 use crate::hash::{self, SriHash};
+use crate::node_modules::{self, NpmPackage};
 use crate::runtime_input::RuntimeInput;
 
 /// Strip the `/nix/store/` prefix to match how component bom-refs are derived from store paths.
@@ -171,6 +173,55 @@ impl CycloneDXComponents {
         }
 
         self.0.0 = m.into_values().collect();
+        Ok(VendoredDependencies(dependencies))
+    }
+
+    /// Extend the `Components` with the npm packages installed into the `node_modules`
+    /// directories of store paths.
+    ///
+    /// Each package version becomes one component with its purl as bom-ref, also when more than
+    /// one store path contains it. A package whose purl a component already has (e.g. from a
+    /// vendored SBOM) is not added again.
+    ///
+    /// Returns the edges from each store path to the packages it contains.
+    pub fn extend_from_node_modules<'a>(
+        &mut self,
+        store_paths: impl IntoIterator<Item = &'a String>,
+    ) -> Result<VendoredDependencies> {
+        let mut by_purl: BTreeMap<String, String> = self
+            .0
+            .0
+            .iter()
+            .filter_map(|c| {
+                let purl = c.purl.as_ref()?.to_string();
+                Some((
+                    purl,
+                    c.bom_ref.clone().unwrap_or_else(|| c.name.to_string()),
+                ))
+            })
+            .collect();
+        let mut dependencies = Vec::new();
+
+        for store_path in store_paths {
+            let mut references = BTreeSet::new();
+            for package in node_modules::scan(Path::new(store_path))? {
+                let Some(purl) = npm_purl(&package.name, &package.version) else {
+                    continue;
+                };
+                let reference = by_purl.entry(purl.clone()).or_insert_with(|| {
+                    self.0.0.push(npm_component(&package, &purl));
+                    purl
+                });
+                references.insert(reference.clone());
+            }
+            if !references.is_empty() {
+                dependencies.push(Dependency {
+                    dependency_ref: bom_ref(store_path),
+                    dependencies: references.into_iter().collect(),
+                });
+            }
+        }
+
         Ok(VendoredDependencies(dependencies))
     }
 
@@ -410,6 +461,51 @@ fn convert_license(license: derivation::License) -> LicenseChoice {
     }
 }
 
+/// The purl of an npm package. The scope of a scoped package is the namespace of the purl.
+fn npm_purl(name: &str, version: &str) -> Option<String> {
+    let builder = match name.split_once('/') {
+        Some((namespace, name)) => {
+            GenericPurlBuilder::new(String::from("npm"), name).with_namespace(namespace)
+        }
+        None => GenericPurlBuilder::new(String::from("npm"), name),
+    };
+    builder
+        .with_version(version)
+        .build()
+        .ok()
+        .map(|purl| purl.to_string())
+}
+
+fn npm_component(package: &NpmPackage, purl: &str) -> Component {
+    let mut component = Component::new(
+        Classification::Library,
+        &package.name,
+        &package.version,
+        Some(purl.to_string()),
+    );
+    component.scope = Some(Scope::Required);
+    component.purl = Purl::from_str(purl).ok();
+    component.licenses = package
+        .license
+        .as_deref()
+        .map(|license| Licenses(vec![convert_declared_license(license)]));
+    component
+}
+
+/// Convert a license as declared by a package manager.
+///
+/// A valid SPDX license identifier becomes an `id`, a valid SPDX expression an `expression`,
+/// and anything else a `name`.
+fn convert_declared_license(license: &str) -> LicenseChoice {
+    if SpdxIdentifier::try_from(license.to_string()).is_ok() {
+        LicenseChoice::License(License::license_id(license))
+    } else if let Ok(expression) = SpdxExpression::try_from(license.to_string()) {
+        LicenseChoice::Expression(expression)
+    } else {
+        LicenseChoice::License(License::named_license(license))
+    }
+}
+
 fn cpes_to_evidence(possible_cpes: &[derivation::Cpe]) -> Option<ComponentEvidence> {
     if possible_cpes.is_empty() {
         return None;
@@ -550,6 +646,36 @@ fn convert_patches(patches: &[String]) -> Patches {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn npm_purls() {
+        assert_eq!(
+            npm_purl("left-pad", "1.3.0").as_deref(),
+            Some("pkg:npm/left-pad@1.3.0")
+        );
+        assert_eq!(
+            npm_purl("@babel/core", "7.24.0").as_deref(),
+            Some("pkg:npm/%40babel/core@7.24.0")
+        );
+    }
+
+    #[test]
+    fn declared_licenses() {
+        let id = |license: &str| LicenseChoice::License(License::license_id(license));
+        let name = |license: &str| LicenseChoice::License(License::named_license(license));
+        let expression = |license: &str| LicenseChoice::Expression(SpdxExpression::new(license));
+
+        assert_eq!(convert_declared_license("MIT"), id("MIT"));
+        assert_eq!(
+            convert_declared_license("(MIT OR Apache-2.0)"),
+            expression("(MIT OR Apache-2.0)")
+        );
+        assert_eq!(
+            convert_declared_license("SEE LICENSE IN LICENSE.md"),
+            name("SEE LICENSE IN LICENSE.md")
+        );
+        assert_eq!(convert_declared_license("UNLICENSED"), name("UNLICENSED"));
+    }
 
     #[test]
     fn serial_number_from_seed() {

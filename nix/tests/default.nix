@@ -14,6 +14,25 @@ let
     includeBuildtimeDependencies = true;
   };
 
+  # A package that installs npm packages into a `node_modules` directory
+  # without a vendored SBOM, as e.g. packages built with yarn do.
+  nodeModules = pkgs.stdenvNoCC.mkDerivation {
+    pname = "node-modules";
+    version = "1.0.0";
+    dontUnpack = true;
+    installPhase = ''
+      package() {
+        mkdir -p "$out/lib/node_modules/$1"
+        echo "$2" > "$out/lib/node_modules/$1/package.json"
+      }
+      package app '{"name": "app", "version": "1.0.0", "license": "MIT"}'
+      package app/node_modules/@scope/a '{"name": "@scope/a", "version": "2.0.0", "license": "(MIT OR Apache-2.0)"}'
+      package app/node_modules/b '{"name": "b", "version": "3.0.0", "license": "SEE LICENSE IN LICENSE"}'
+      # Not a package because it is not directly inside a `node_modules` directory.
+      package app/dist '{"name": "dist", "version": "1.0.0"}'
+    '';
+  };
+
   # This list cannot grow indefinitely because building a Bom requires all
   # builtime dependencies to be downloaded or built. A lot of time is spent
   # evaluating, downloading, and building.
@@ -113,6 +132,14 @@ let
     }
 
     {
+      name = "node-modules";
+      drv = nodeModules;
+      options = {
+        scanNodeModules = true;
+      };
+    }
+
+    {
       name = "taze";
       drv = pnpmPassthru taze;
       options = { };
@@ -127,6 +154,14 @@ let
       name = "lessc";
       drv = pnpmPassthru lessc;
       options = { };
+    }
+    # The packages that the vendored SBOM already describes are not added again.
+    {
+      name = "lessc-node-modules";
+      drv = pnpmPassthru lessc;
+      options = {
+        scanNodeModules = true;
+      };
     }
 
     {
@@ -180,5 +215,29 @@ let
 
   genAttrsFromDrvs =
     drvs: f: builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.name (f d.drv d.options)) drvs);
+
+  # Check that the npm packages of `nodeModules` are components with their
+  # licenses and dependencies of the store path that contains them.
+  nodeModulesContents =
+    pkgs.runCommand "node-modules-bom-contents" { nativeBuildInputs = [ pkgs.jq ]; }
+      ''
+        jq --exit-status '
+          [.components[] | select(.purl | startswith("pkg:npm/"))] as $npm
+          | ($npm | map({ (.purl): .licenses }) | add) == {
+              "pkg:npm/app@1.0.0": [{ "license": { "id": "MIT" } }],
+              "pkg:npm/%40scope/a@2.0.0": [{ "expression": "(MIT OR Apache-2.0)" }],
+              "pkg:npm/b@3.0.0": [{ "license": { "name": "SEE LICENSE IN LICENSE" } }]
+            }
+          and ($npm | all(."bom-ref" == .purl))
+          and (
+            [.dependencies[] | select(.ref | endswith("-node-modules-1.0.0")) | .dependsOn[]]
+            | sort == ($npm | map(.purl) | sort)
+          )
+        ' ${buildBom nodeModules { scanNodeModules = true; }}
+        touch $out
+      '';
 in
 genAttrsFromDrvs testDerivations buildBomAndValidate
+// {
+  node-modules-contents = nodeModulesContents;
+}

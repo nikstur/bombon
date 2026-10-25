@@ -121,6 +121,16 @@ An SBOM built from this new derivation will now include the vendored dependencie
 - `includeBuildtimeDependencies`: boolean flag to include buildtime dependencies in output.
 - `excludes`: a list of regex patterns of store paths to exclude from the final
   SBOM.
+- `scanNodeModules`: boolean flag to add the npm packages installed into the
+  `node_modules` directories of the runtime closure. Each package directly
+  inside a `node_modules` directory (or a scope directory like
+  `node_modules/@scope`) becomes a component with the license that its
+  `package.json` declares, and a dependency of the store path that contains
+  it. Store paths that match `excludes` are not scanned. This also covers packages that do not use `npmConfigHook`
+  or `pnpmConfigHook` (e.g. packages built with yarn) without wrapping them
+  with `passthruVendoredSbom`. Packages that a vendored SBOM already describes
+  are not added again. Packages bundled into other files (e.g. by a front-end
+  bundler) have no `package.json` and are thus not found.
 
 Example:
 

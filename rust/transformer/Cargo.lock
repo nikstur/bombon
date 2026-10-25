@@ -59,6 +59,7 @@ dependencies = [
  "clap",
  "cyclonedx-bom",
  "itertools",
+ "purl",
  "regex",
  "serde",
  "serde_json",

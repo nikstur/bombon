@@ -11,6 +11,10 @@ pub struct Cli {
     #[arg(long)]
     include_buildtime_dependencies: bool,
 
+    /// Add the npm packages in the `node_modules` directories of the runtime closure
+    #[arg(long)]
+    scan_node_modules: bool,
+
     /// Regex pattern of store paths to exclude from the final SBOM.
     ///
     /// Can be given multiple times to exclude multiple patterns.
@@ -40,6 +44,7 @@ impl Cli {
     pub fn call(self) -> Result<()> {
         transform(
             self.include_buildtime_dependencies,
+            self.scan_node_modules,
             &self.exclude,
             &self.serial_number_seed,
             &self.target,

@@ -13,8 +13,10 @@ use crate::cyclonedx::{
 use crate::derivation::Derivation;
 use crate::runtime_input::RuntimeInput;
 
+#[allow(clippy::too_many_arguments)]
 pub fn transform(
     include_buildtime_dependencies: bool,
+    scan_node_modules: bool,
     exclude: &[String],
     serial_number_seed: &str,
     target_path: &str,
@@ -85,6 +87,19 @@ pub fn transform(
             vendored_dependencies
                 .extend(components.extend_from_directory(sbom_path, &derivation.path)?);
         }
+    }
+
+    // Augment the components with the npm packages installed into the runtime closure. This runs
+    // after reading the vendored SBOMs so that a package they already describe is not added again.
+    if scan_node_modules {
+        vendored_dependencies.extend(
+            components.extend_from_node_modules(
+                runtime_input
+                    .paths
+                    .iter()
+                    .filter(|store_path| !set.is_match(store_path)),
+            )?,
+        );
     }
 
     components.deduplicate();

@@ -12,12 +12,16 @@ drv:
   extraPaths ? [ ],
   includeBuildtimeDependencies ? false,
   excludes ? [ ],
+  scanNodeModules ? false,
 }:
 
 let
   args =
     lib.optionals includeBuildtimeDependencies [
       "--include-buildtime-dependencies"
+    ]
+    ++ lib.optionals scanNodeModules [
+      "--scan-node-modules"
     ]
     ++ lib.optionals (excludes != [ ]) (lib.map (e: "--exclude=${lib.escapeShellArg e}") excludes);
 in

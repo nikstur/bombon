@@ -3,6 +3,7 @@ mod cli;
 mod cyclonedx;
 mod derivation;
 mod hash;
+mod node_modules;
 mod runtime_input;
 mod transform;
 

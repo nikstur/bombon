@@ -14,6 +14,7 @@ sha2 = "0.11.0"
 uuid = "1.17.0"
 base64 = "0.23.0"
 regex = "1.11.1"
+purl = { version = "0.1.6", default-features = false }
 
 [lints.rust]
 unsafe_code = "forbid"
