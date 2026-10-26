@@ -28,6 +28,7 @@ use sha2::{Digest, Sha256};
 
 use crate::buildtime_input::BuildtimeInput;
 use crate::derivation::{self, Derivation, Meta, Src};
+use crate::graph::Graph;
 use crate::hash::{self, SriHash};
 use crate::runtime_input::RuntimeInput;
 
@@ -234,9 +235,8 @@ impl CycloneDXDependencies {
     ///   - the Nix build-time reference graph (each derivation's direct build inputs)
     ///   - the language-level graphs carried by the vendored SBOMs, keyed by purl
     ///
-    /// Edges are restricted to refs that actually exist in the final BOM, so the graph stays
-    /// valid after filtering and deduplication. Entries are merged by ref so no `dependency_ref`
-    /// appears twice.
+    /// The graph is first built over all store paths and refs, then restricted to the refs that
+    /// actually exist in the final BOM, so it stays valid after filtering and deduplication.
     pub fn assemble(
         components: &CycloneDXComponents,
         target_derivation: &Derivation,
@@ -248,56 +248,40 @@ impl CycloneDXDependencies {
         let mut present = components.bom_refs();
         present.insert(bom_ref(&target_derivation.path));
 
-        let mut graph: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        let mut graph = Graph::default();
         for (path, references) in &runtime_input.references {
-            let dependent = bom_ref(path);
-            if !present.contains(&dependent) {
-                continue;
-            }
-            let entry = graph.entry(dependent).or_default();
+            graph.add_node(bom_ref(path));
             for reference in references {
-                let dependency = bom_ref(reference);
-                if present.contains(&dependency) {
-                    entry.insert(dependency);
-                }
+                graph.add_edge(bom_ref(path), bom_ref(reference));
             }
         }
         if include_buildtime_dependencies {
             for derivation in buildtime_input.0.values() {
-                let dependent = bom_ref(&derivation.path);
-                if !present.contains(&dependent) {
-                    continue;
-                }
-                let entry = graph.entry(dependent.clone()).or_default();
+                graph.add_node(bom_ref(&derivation.path));
                 for reference in &derivation.build_references {
-                    let dependency = bom_ref(reference);
-                    if dependency != dependent && present.contains(&dependency) {
-                        entry.insert(dependency);
-                    }
+                    graph.add_edge(bom_ref(&derivation.path), bom_ref(reference));
                 }
             }
         }
         for dependency in vendored_dependencies.0 {
-            if !present.contains(&dependency.dependency_ref) {
-                continue;
-            }
-            let entry = graph.entry(dependency.dependency_ref).or_default();
+            graph.add_node(dependency.dependency_ref.clone());
             for sub in dependency.dependencies {
-                if present.contains(&sub) {
-                    entry.insert(sub);
-                }
+                graph.add_edge(dependency.dependency_ref.clone(), sub);
             }
         }
+
+        graph.restrict(&present);
 
         // Declare every component as a node, including leaves with no dependencies of
         // their own: the CycloneDX spec (as required by BSI TR-03183-2 §5.1) mandates
         // that such components appear as empty elements in the dependency graph.
         for reference in &present {
-            graph.entry(reference.clone()).or_default();
+            graph.add_node(reference.clone());
         }
 
         Self(Dependencies(
             graph
+                .into_inner()
                 .into_iter()
                 .map(|(dependency_ref, dependencies)| Dependency {
                     dependency_ref,
