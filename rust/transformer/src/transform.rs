@@ -80,7 +80,10 @@ pub fn transform(
     // Augment the components with those retrieved from the `sbom` passthru attribute of the
     // derivations, preserving the (language-level) dependency edges those SBOMs declare.
     let mut vendored_dependencies = VendoredDependencies::new();
-    for derivation in buildtime_input.0.values() {
+    let derivations_in_bom = buildtime_input.0.values().filter(|derivation| {
+        include_buildtime_dependencies || runtime_input.paths.contains(&derivation.path)
+    });
+    for derivation in derivations_in_bom {
         if let Some(sbom_path) = &derivation.vendored_sbom {
             vendored_dependencies
                 .extend(components.extend_from_directory(sbom_path, &derivation.path)?);

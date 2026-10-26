@@ -10,6 +10,30 @@ let
   pnpmPassthru = pkg: passthruVendoredSbom.pnpm pkg { inherit pkgs; };
   goPassthru = pkg: passthruVendoredSbom.go pkg { inherit pkgs; };
 
+  buildToolWithVendoredSbom = pkgs.runCommand "build-tool-1.0" {
+    passthru.bombonVendoredSbom = pkgs.writeTextDir "build-tool.cdx.json" (
+      builtins.toJSON {
+        bomFormat = "CycloneDX";
+        specVersion = "1.5";
+        version = 1;
+        components = [
+          {
+            type = "library";
+            bom-ref = "pkg:generic/vendored-by-build-tool@1.0";
+            name = "vendored-by-build-tool";
+            version = "1.0";
+            purl = "pkg:generic/vendored-by-build-tool@1.0";
+          }
+        ];
+      }
+    );
+  } "touch $out";
+
+  # The build tool is not in the runtime closure.
+  builtWithVendoredSbomTool = pkgs.runCommand "built-with-vendored-sbom-tool-1.0" {
+    nativeBuildInputs = [ buildToolWithVendoredSbom ];
+  } "touch $out";
+
   buildtimeOptions = {
     includeBuildtimeDependencies = true;
   };
@@ -198,3 +222,14 @@ let
     drvs: f: builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.name (f d.drv d.options)) drvs);
 in
 genAttrsFromDrvs testDerivations buildBomAndValidate
+// {
+  vendored-sbom-of-build-tool =
+    pkgs.runCommand "vendored-sbom-of-build-tool" { nativeBuildInputs = [ pkgs.jq ]; }
+      ''
+        jq -e 'all(.components[]; .name != "vendored-by-build-tool")' \
+          "${buildBom builtWithVendoredSbomTool { }}"
+        jq -e 'any(.components[]; .name == "vendored-by-build-tool")' \
+          "${buildBom builtWithVendoredSbomTool buildtimeOptions}"
+        touch $out
+      '';
+}

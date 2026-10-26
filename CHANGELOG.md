@@ -31,6 +31,10 @@
 - Fixed building an SBOM realising the whole build closure of the package,
   even without `includeBuildtimeDependencies`. Only the patches and vendored
   SBOMs that the transformer reads are now built or substituted.
+- Fixed the vendored SBOMs of build tools ending up in the SBOM without
+  `includeBuildtimeDependencies`. Only the vendored SBOMs of derivations in
+  the runtime closure are now read, unless build-time dependencies are
+  included.
 
 ## 0.4.0
 
