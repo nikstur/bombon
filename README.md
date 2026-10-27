@@ -107,6 +107,10 @@ The `passthruVendoredSbom.go` function covers packages built with
 myGoPackageWithSbom = bombon.passthruVendoredSbom.go myGoPackage { inherit pkgs; };
 ```
 
+`cyclonedx-gomod` cannot find the licenses of the Go modules offline. Instead,
+`licenseclassifier` identifies them from the license files of the vendored
+modules, in the vendor directory or, with `proxyVendor`, in the module cache.
+
 An SBOM built from this new derivation will now include the vendored dependencies.
 
 ## Options
