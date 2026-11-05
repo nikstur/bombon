@@ -31,6 +31,9 @@
 - Fixed building an SBOM realising the whole build closure of the package,
   even without `includeBuildtimeDependencies`. Only the patches and vendored
   SBOMs that the transformer reads are now built or substituted.
+- Fixed licenses that are not from `lib.licenses` but declare their own
+  `spdxId`, e.g. `LicenseRef-acme-proprietary`. They became
+  `LicenseRef-unknown`; their `spdxId` is now kept.
 
 ## 0.4.0
 
