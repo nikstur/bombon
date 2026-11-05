@@ -76,6 +76,8 @@ let
           lib.licenses.toSPDX license
         else if lib.isString license then
           license
+        else if license ? spdxId then
+          license.spdxId
         else
           "LicenseRef-unknown";
 
