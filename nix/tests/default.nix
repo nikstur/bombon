@@ -9,6 +9,7 @@ let
   npmPassthru = pkg: passthruVendoredSbom.npm pkg { inherit pkgs; };
   pnpmPassthru = pkg: passthruVendoredSbom.pnpm pkg { inherit pkgs; };
   goPassthru = pkg: passthruVendoredSbom.go pkg { inherit pkgs; };
+  composerPassthru = pkg: passthruVendoredSbom.composer pkg { inherit pkgs; };
 
   buildtimeOptions = {
     includeBuildtimeDependencies = true;
@@ -141,6 +142,12 @@ let
     }
 
     # Multiple src urls
+    {
+      name = "psysh";
+      drv = composerPassthru psysh;
+      options = { };
+    }
+
     {
       name = "kexec-tools";
       drv = kexec-tools;
