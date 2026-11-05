@@ -9,6 +9,7 @@ let
   npmPassthru = pkg: passthruVendoredSbom.npm pkg { inherit pkgs; };
   pnpmPassthru = pkg: passthruVendoredSbom.pnpm pkg { inherit pkgs; };
   goPassthru = pkg: passthruVendoredSbom.go pkg { inherit pkgs; };
+  composerPassthru = pkg: passthruVendoredSbom.composer pkg { inherit pkgs; };
 
   buildtimeOptions = {
     includeBuildtimeDependencies = true;
@@ -138,6 +139,12 @@ let
       name = "age-buildtime";
       drv = goPassthru age;
       options = buildtimeOptions;
+    }
+
+    {
+      name = "psysh";
+      drv = composerPassthru psysh;
+      options = { };
     }
 
     # Multiple src urls
