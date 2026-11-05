@@ -198,3 +198,11 @@ let
     drvs: f: builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.name (f d.drv d.options)) drvs);
 in
 genAttrsFromDrvs testDerivations buildBomAndValidate
+// {
+  # The src of hello is fetched from a mirror:// URL.
+  mirror-url = pkgs.runCommand "mirror-url" { nativeBuildInputs = [ pkgs.jq ]; } ''
+    sbom="${buildBom pkgs.hello { }}"
+    jq -e '[.metadata.component.externalReferences[] | select(.type == "vcs") | .url] | length > 0 and all(startswith("https://"))' "$sbom"
+    touch $out
+  '';
+}
