@@ -205,4 +205,11 @@ genAttrsFromDrvs testDerivations buildBomAndValidate
     jq -e '[.metadata.component.externalReferences[] | select(.type == "vcs") | .url] | length > 0 and all(startswith("https://"))' "$sbom"
     touch $out
   '';
+
+  # tzdata has `srcs` instead of a `src`.
+  srcs-urls = pkgs.runCommand "srcs-urls" { nativeBuildInputs = [ pkgs.jq ]; } ''
+    sbom="${buildBom pkgs.tzdata { }}"
+    jq -e '[.metadata.component.externalReferences[] | select(.type == "vcs") | .url] | length == ${toString (builtins.length pkgs.tzdata.srcs)} and all(startswith("https://"))' "$sbom"
+    touch $out
+  '';
 }

@@ -33,6 +33,8 @@
   SBOMs that the transformer reads are now built or substituted.
 - Fixed source URLs like `mirror://gnu/hello/hello-2.12.3.tar.gz` that only
   `fetchurl` understands. The SBOM now references the first mirror instead.
+- Fixed missing source URLs of derivations that have several sources in `srcs`
+  and no `src`, like `tzdata`. The URLs of all of them are now included.
 
 ## 0.4.0
 

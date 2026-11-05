@@ -106,6 +106,10 @@ let
         hash = drv.src.outputHash;
       };
     }
+    # Several sources share no hash.
+    // lib.optionalAttrs (!(drv ? src) && lib.isList (drv.srcs or null)) {
+      src.urls = map resolveUrl (lib.concatMap (src: src.urls or [ ]) drv.srcs);
+    }
     // lib.optionalAttrs (drv ? bombonVendoredSbom) {
       vendoredSbom = drv.bombonVendoredSbom.outPath;
     }
