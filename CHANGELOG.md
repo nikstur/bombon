@@ -12,7 +12,9 @@
   with `pnpm sbom`, which requires pnpm 11 or newer.
 - Added `passthruVendoredSbom.go` to generate SBOMs for vendored Go
   dependencies of packages built with `buildGoModule`. The SBOM is generated
-  with `cyclonedx-gomod`.
+  with `cyclonedx-gomod`. The licenses of the Go modules are identified
+  offline from the license files of the vendored modules with
+  `licenseclassifier`.
 - Added emitting a CycloneDX dependency graph spanning runtime dependencies,
   vendored language-level SBOMs' graphs, and optionally build-time dependencies
   via the `includeBuildtimeDependencies` flag.

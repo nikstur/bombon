@@ -215,8 +215,9 @@
   #
   # `cyclonedx-gomod` reads the build info embedded in the compiled Go
   # binaries, so the SBOM describes exactly the modules linked into them.
-  # License detection is disabled because it downloads modules from the Go
-  # module proxy, which does not work offline for all vendoring modes.
+  # Its license detection is disabled because it downloads the modules, which
+  # does not work offline. Instead, `go-licenses.py` identifies the licenses
+  # from the license files of the vendored modules with `licenseclassifier`.
   go =
     package:
     { pkgs }:
@@ -225,8 +226,14 @@
         passthru = (previousAttrs.passthru or { }) // {
           bombonVendoredSbom = finalAttrs.finalPackage.overrideAttrs (previousAttrs: {
             pname = previousAttrs.pname + "-bombon-vendored-sbom";
+            # `buildGoModule` names `goModules` after the `pname`, so the
+            # renamed `pname` would otherwise produce a new fixed-output
+            # derivation that fetches all modules again.
+            inherit (finalAttrs.finalPackage) goModules;
             nativeBuildInputs = (previousAttrs.nativeBuildInputs or [ ]) ++ [
               pkgs.buildPackages.cyclonedx-gomod
+              pkgs.buildPackages.licenseclassifier
+              pkgs.buildPackages.python3
             ];
             outputs = [ "out" ];
             phases = [
@@ -250,6 +257,13 @@
                   -output "$(basename "$binary").cdx.json" \
                   "$binary"
               done
+
+              # The vendored modules: a vendor directory, or with `proxyVendor`
+              # the module cache that `GOPROXY` points to.
+              python3 ${./go-licenses.py} \
+                ${pkgs.buildPackages.spdx-license-list-data.json}/json/licenses.json \
+                ${if previousAttrs.proxyVendor or false then ''"$goModules"'' else "vendor"} \
+                *.cdx.json
             '';
 
             installPhase = ''
