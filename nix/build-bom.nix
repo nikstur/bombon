@@ -2,7 +2,6 @@
   lib,
   runCommand,
   transformer,
-  cyclonedx-cli,
   buildtimeDependencies,
   runtimeDependencies,
 }:
@@ -29,7 +28,6 @@ runCommand "${drv.name}.cdx.json"
 
     nativeBuildInputs = [
       transformer
-      cyclonedx-cli
     ];
   }
   ''
@@ -38,11 +36,5 @@ runCommand "${drv.name}.cdx.json"
       --serial-number-seed "$out" \
       ${buildtimeDependencies drv extraPaths} \
       ${runtimeDependencies drv extraPaths} \
-      tmp.cdx.json
-
-    cyclonedx convert \
-      --input-format=json \
-      --input-file=tmp.cdx.json \
-      --output-version=v1_7 \
-      --output-file=$out
+      "$out"
   ''
