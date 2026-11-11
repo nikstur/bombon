@@ -9,6 +9,7 @@ let
   npmPassthru = pkg: passthruVendoredSbom.npm pkg { inherit pkgs; };
   pnpmPassthru = pkg: passthruVendoredSbom.pnpm pkg { inherit pkgs; };
   goPassthru = pkg: passthruVendoredSbom.go pkg { inherit pkgs; };
+  nodeModulesPassthru = pkg: passthruVendoredSbom.nodeModules pkg { inherit pkgs; };
 
   buildtimeOptions = {
     includeBuildtimeDependencies = true;
@@ -126,6 +127,13 @@ let
     {
       name = "lessc";
       drv = pnpmPassthru lessc;
+      options = { };
+    }
+
+    # Installed with yarn
+    {
+      name = "auto-changelog";
+      drv = nodeModulesPassthru auto-changelog;
       options = { };
     }
 

@@ -211,6 +211,40 @@
     );
 
   # Add a passthru derivation that generates a CycloneDX SBOM to a derivation
+  # `package` that installs npm packages into a `node_modules` directory,
+  # independent of the package manager (e.g. yarn).
+  #
+  # The SBOM describes the npm packages in the `node_modules` directories of
+  # all outputs of `package`, including packages linked in from other store
+  # paths. It does not build `package` again because it only reads the outputs.
+  nodeModules =
+    package:
+    { pkgs }:
+    package.overrideAttrs (
+      finalAttrs: previousAttrs: {
+        passthru = (previousAttrs.passthru or { }) // {
+          bombonVendoredSbom =
+            let
+              inherit (finalAttrs) finalPackage;
+              name = pkgs.lib.getName finalPackage;
+            in
+            pkgs.runCommand "${name}-bombon-vendored-sbom"
+              {
+                nativeBuildInputs = [ pkgs.buildPackages.python3 ];
+              }
+              ''
+                mkdir -p $out
+                python3 ${./node-modules-sbom.py} ${pkgs.lib.escapeShellArg name} \
+                  ${
+                    pkgs.lib.escapeShellArgs (map (output: finalPackage.${output}) (finalPackage.outputs or [ "out" ]))
+                  } \
+                  > $out/${name}.cdx.json
+              '';
+        };
+      }
+    );
+
+  # Add a passthru derivation that generates a CycloneDX SBOM to a derivation
   # `package` built with `buildGoModule`.
   #
   # `cyclonedx-gomod` reads the build info embedded in the compiled Go
