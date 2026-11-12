@@ -112,6 +112,34 @@ impl Graph {
         false
     }
 
+    /// Nodes from which every node of the graph is reachable.
+    ///
+    /// These are the nodes no other node depends on, plus one node of each cycle that cannot be
+    /// reached from them.
+    pub fn entry_points(&self) -> Vec<String> {
+        let dependencies: BTreeSet<&String> = self.0.values().flatten().collect();
+        let mut entry_points = Vec::new();
+        let mut reached = BTreeSet::new();
+        let unreferenced = self.0.keys().filter(|node| !dependencies.contains(node));
+        let rest = self.0.keys().filter(|node| dependencies.contains(node));
+        for node in unreferenced.chain(rest) {
+            if !reached.contains(node.as_str()) {
+                entry_points.push(node.clone());
+                self.extend_reachable(node, &mut reached);
+            }
+        }
+        entry_points
+    }
+
+    fn extend_reachable<'a>(&'a self, from: &'a str, reached: &mut BTreeSet<&'a str>) {
+        let mut todo = vec![from];
+        while let Some(node) = todo.pop() {
+            if reached.insert(node) {
+                todo.extend(self.0.get(node).into_iter().flatten().map(String::as_str));
+            }
+        }
+    }
+
     /// The nodes and the dependencies of each node.
     pub fn into_inner(self) -> BTreeMap<String, BTreeSet<String>> {
         self.0
@@ -269,5 +297,17 @@ mod tests {
                 ("hello".into(), set(&["glibc"])),
             ])
         );
+    }
+
+    #[test]
+    fn entry_points_are_unreferenced_nodes() {
+        let g = graph(&[("a", "b"), ("c", "b"), ("b", "d")]);
+        assert_eq!(g.entry_points(), ["a", "c"]);
+    }
+
+    #[test]
+    fn entry_points_include_unreachable_cycles() {
+        let g = graph(&[("a", "b"), ("c", "d"), ("d", "c"), ("d", "e")]);
+        assert_eq!(g.entry_points(), ["a", "c"]);
     }
 }

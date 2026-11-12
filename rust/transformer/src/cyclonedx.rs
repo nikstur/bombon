@@ -131,6 +131,8 @@ impl CycloneDXComponents {
     /// Each vendored BOM's root (`metadata.component`) describes the same artifact as the owning Nix derivation,
     /// but is never itself emitted as a component. Its bom-ref is therefore remapped to the owning derivation's
     /// bom-ref so the language-level graph connects to the store-path component instead of dangling on a root that nothing references.
+    /// Components the root doesn't reach, or all components of a BOM without a root, are linked to the owning
+    /// derivation directly.
     pub fn extend_from_directory(
         &mut self,
         path: impl AsRef<Path>,
@@ -161,30 +163,48 @@ impl CycloneDXComponents {
                 .as_ref()
                 .and_then(|meta| meta.component.as_ref())
                 .and_then(|component| component.bom_ref.clone());
+            let remap = |reference: String| {
+                if root_ref.as_ref() == Some(&reference) {
+                    target_ref.clone()
+                } else {
+                    reference
+                }
+            };
+            let mut graph = Graph::default();
             if let Some(components) = &bom.0.components {
                 for component in &components.0 {
                     let key = component
                         .bom_ref
                         .clone()
                         .unwrap_or_else(|| component.name.to_string());
+                    graph.add_node(remap(key.clone()));
                     m.entry(key).or_insert_with(|| component.clone());
                 }
             }
-            if let Some(deps) = bom.0.dependencies {
-                for mut dep in deps.0 {
-                    if let Some(root) = &root_ref {
-                        if dep.dependency_ref == *root {
-                            dep.dependency_ref.clone_from(&target_ref);
-                        }
-                        for sub in &mut dep.dependencies {
-                            if sub == root {
-                                sub.clone_from(&target_ref);
-                            }
-                        }
-                    }
-                    dependencies.push(dep);
+            for dep in bom.0.dependencies.into_iter().flat_map(|deps| deps.0) {
+                let dependent = remap(dep.dependency_ref);
+                graph.add_node(dependent.clone());
+                for sub in dep.dependencies {
+                    graph.add_edge(dependent.clone(), remap(sub));
                 }
             }
+            let entry_points = graph
+                .entry_points()
+                .into_iter()
+                .filter(|entry_point| *entry_point != target_ref)
+                .collect::<Vec<_>>();
+            dependencies.push(Dependency {
+                dependency_ref: target_ref.clone(),
+                dependencies: entry_points,
+                provides: Vec::new(),
+            });
+            dependencies.extend(graph.into_inner().into_iter().map(
+                |(dependency_ref, dependencies)| Dependency {
+                    dependency_ref,
+                    dependencies: dependencies.into_iter().collect(),
+                    provides: Vec::new(),
+                },
+            ));
         }
 
         self.0.0 = m.into_values().collect();
@@ -753,6 +773,115 @@ mod tests {
                 "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.219".into()
             )])
         );
+    }
+
+    fn runtime_input(closure: &[(&str, &[&str])]) -> RuntimeInput {
+        let store_path = |name: &str| format!("/nix/store/{name}");
+        RuntimeInput {
+            paths: closure.iter().map(|(path, _)| store_path(path)).collect(),
+            references: closure
+                .iter()
+                .map(|(path, references)| {
+                    (
+                        store_path(path),
+                        references.iter().map(|r| store_path(r)).collect(),
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    fn components(runtime_input: &RuntimeInput) -> CycloneDXComponents {
+        CycloneDXComponents::from_derivations(
+            runtime_input
+                .paths
+                .iter()
+                .map(|path| Derivation::from_store_path(path))
+                .filter(|derivation| derivation.version.is_some()),
+        )
+    }
+
+    fn assemble(
+        target: &str,
+        runtime_input: &RuntimeInput,
+        components: &CycloneDXComponents,
+        vendored_dependencies: VendoredDependencies,
+    ) -> BTreeMap<String, Vec<String>> {
+        CycloneDXDependencies::assemble(
+            components,
+            &Derivation::from_store_path(&format!("/nix/store/{target}")),
+            runtime_input,
+            &BuildtimeInput(BTreeMap::new()),
+            false,
+            vendored_dependencies,
+            &BTreeMap::new(),
+        )
+        .0
+        .0
+        .into_iter()
+        .map(|dependency| (dependency.dependency_ref, dependency.dependencies))
+        .collect()
+    }
+
+    fn edges(edges: &[(&str, &[&str])]) -> BTreeMap<String, Vec<String>> {
+        edges
+            .iter()
+            .map(|(dependent, dependencies)| {
+                (
+                    (*dependent).to_string(),
+                    dependencies.iter().map(ToString::to_string).collect(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn vendored_bom_without_root_is_linked_to_its_owner() -> Result<()> {
+        let directory = std::env::temp_dir().join(format!(
+            "bombon-vendored-without-root-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&directory)?;
+        let bom_components = ["requests", "idna", "contourpy", "matplotlib"]
+            .map(|name| serde_json::json!({"type": "library", "name": name, "bom-ref": name}));
+        fs::write(
+            directory.join("bom.json"),
+            serde_json::json!({
+                "bomFormat": "CycloneDX",
+                "specVersion": "1.5",
+                "version": 1,
+                "components": bom_components,
+                "dependencies": [
+                    {"ref": "requests", "dependsOn": ["idna"]},
+                    {"ref": "contourpy", "dependsOn": ["matplotlib"]},
+                    {"ref": "matplotlib", "dependsOn": ["contourpy"]},
+                ],
+            })
+            .to_string(),
+        )?;
+
+        let runtime_input = runtime_input(&[("r-app-1.0", &[])]);
+        let mut components = components(&runtime_input);
+        let vendored_dependencies =
+            components.extend_from_directory(&directory, "/nix/store/r-app-1.0")?;
+        fs::remove_dir_all(&directory)?;
+
+        assert_eq!(
+            assemble(
+                "r-app-1.0",
+                &runtime_input,
+                &components,
+                vendored_dependencies
+            ),
+            edges(&[
+                ("contourpy", &["matplotlib"]),
+                ("idna", &[]),
+                ("matplotlib", &["contourpy"]),
+                ("r-app-1.0", &["contourpy", "requests"]),
+                ("requests", &["idna"]),
+            ])
+        );
+        Ok(())
     }
 
     #[test]
