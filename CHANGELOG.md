@@ -24,6 +24,9 @@
   other metadata from evaluation. It adds no store paths and no dependency
   edges: it only describes store paths already in the closure, including the
   vendored SBOM such a path carries.
+- Added reading `passthru.bombonMetadataFrom` from every derivation in the
+  build closure. It works like the `metadataFrom` option, so a derivation can
+  declare the packages it references only in strings.
 
 ### Fixed
 

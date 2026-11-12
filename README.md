@@ -132,6 +132,10 @@ An SBOM built from this new derivation will now include the vendored dependencie
 - `includeBuildtimeDependencies`: boolean flag to include buildtime dependencies in output.
 - `excludes`: a list of regex patterns of store paths to exclude from the final
   SBOM.
+- `passthru.bombonMetadataFrom` (on any derivation in the build closure, not
+  an option): like `metadataFrom`, for the packages that this derivation
+  references only in strings. Entries that match no store path in the closure
+  are ignored.
 
 Example:
 

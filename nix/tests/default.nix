@@ -14,6 +14,10 @@ let
   # doesn't find it.
   stringReference = pkgs.writeText "string-reference" "${pkgs.hello}/bin/hello";
 
+  stringReferenceWithPassthru = stringReference.overrideAttrs {
+    passthru.bombonMetadataFrom = [ pkgs.hello ];
+  };
+
   # A different variant of hello, so none of its outputs is in the closure.
   helloVariant = pkgs.hello.overrideAttrs { doCheck = false; };
 
@@ -239,6 +243,14 @@ genAttrsFromDrvs testDerivations buildBomAndValidate
     in
     jqCheck "string-reference-metadata-from-unmatched" ''
       jq -e 'all(.components[]; .["bom-ref"] != "${baseNameOf helloVariant}")' ${sbom}
+      ${sameComponentCount sbom}
+    '';
+  string-reference-passthru-metadata-from =
+    let
+      sbom = buildBomAndValidate stringReferenceWithPassthru { };
+    in
+    jqCheck "string-reference-passthru-metadata-from" ''
+      jq -e '${hasHelloMetadata}' ${sbom}
       ${sameComponentCount sbom}
     '';
 }

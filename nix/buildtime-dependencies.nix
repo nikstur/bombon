@@ -122,6 +122,7 @@ let
   # the closure but unreachable by evaluation, e.g. because they are only
   # referenced in a string. They must add no store paths and no edges.
   metadataFromFields =
+    { checked }:
     entry:
     let
       entryOutPaths = map (output: output.outPath) (drvOutputs entry);
@@ -132,14 +133,26 @@ let
       // {
         metadataOnly = true;
       }
-      // lib.optionalAttrs (lib.elem item.key entryOutPaths) {
+      // lib.optionalAttrs (checked && lib.elem item.key entryOutPaths) {
         metadataFromEntry = entry.outPath;
       }
     ) (buildtimeDerivations entry);
 
+  passthruMetadataFrom = map (item: item.drv) (
+    builtins.genericClosure {
+      startSet = map wrap (
+        lib.concatMap (item: item.drv.bombonMetadataFrom or [ ]) allBuildtimeDerivations
+      );
+      operator = _: [ ];
+    }
+  );
+
   allFields =
     map (item: fields item.drv) allBuildtimeDerivations
-    ++ lib.concatMap metadataFromFields metadataFrom;
+    ++ lib.concatMap (metadataFromFields { checked = true; }) metadataFrom
+    # Not checked: the declaring derivation may be a build-time dependency
+    # only, so its string references never reach the closure.
+    ++ lib.concatMap (metadataFromFields { checked = false; }) passthruMetadataFrom;
 
   # The transformer reads only the patches and vendored SBOMs. The other store
   # paths are just names to it, and with their context building the SBOM
