@@ -131,6 +131,16 @@ impl Graph {
         entry_points
     }
 
+    /// The nodes that are not reachable from `from`.
+    pub fn unreachable_from(&self, from: &str) -> Vec<&String> {
+        let mut reached = BTreeSet::new();
+        self.extend_reachable(from, &mut reached);
+        self.0
+            .keys()
+            .filter(|node| !reached.contains(node.as_str()))
+            .collect()
+    }
+
     fn extend_reachable<'a>(&'a self, from: &'a str, reached: &mut BTreeSet<&'a str>) {
         let mut todo = vec![from];
         while let Some(node) = todo.pop() {
@@ -309,5 +319,11 @@ mod tests {
     fn entry_points_include_unreachable_cycles() {
         let g = graph(&[("a", "b"), ("c", "d"), ("d", "c"), ("d", "e")]);
         assert_eq!(g.entry_points(), ["a", "c"]);
+    }
+
+    #[test]
+    fn unreachable_from_lists_unreachable_nodes() {
+        let g = graph(&[("a", "b"), ("c", "b")]);
+        assert_eq!(g.unreachable_from("a"), ["c"]);
     }
 }

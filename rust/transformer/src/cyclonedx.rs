@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use cyclonedx_bom::external_models::normalized_string::NormalizedString;
 use cyclonedx_bom::external_models::spdx::SpdxExpression;
 use cyclonedx_bom::external_models::uri::{Purl, Uri};
@@ -318,6 +318,8 @@ impl CycloneDXDependencies {
     /// BOM (e.g. because it was filtered out) is then contracted, so its dependents depend directly
     /// on its dependencies. At build time, such an indirect edge is only added where the dependent
     /// doesn't reach its dependency otherwise.
+    ///
+    /// Fails if a component is not reachable from the root.
     #[allow(clippy::too_many_arguments)]
     pub fn assemble(
         components: &CycloneDXComponents,
@@ -328,7 +330,7 @@ impl CycloneDXDependencies {
         include_buildtime_dependencies: bool,
         vendored_dependencies: VendoredDependencies,
         aliases: &BTreeMap<String, String>,
-    ) -> Self {
+    ) -> Result<Self> {
         let root = bom_ref(&target_derivation.path);
         let mut present = components.bom_refs();
         present.insert(root.clone());
@@ -389,7 +391,15 @@ impl CycloneDXDependencies {
             graph.add_node(reference.clone());
         }
 
-        Self(Dependencies(
+        let unreachable = graph.unreachable_from(&root);
+        ensure!(
+            unreachable.is_empty(),
+            "Components are not reachable from the root {root} in the dependency graph. \
+             This is a bug in bombon. Unreachable components: {}",
+            unreachable.into_iter().join(", ")
+        );
+
+        Ok(Self(Dependencies(
             graph
                 .into_inner()
                 .into_iter()
@@ -399,7 +409,7 @@ impl CycloneDXDependencies {
                     provides: Vec::new(),
                 })
                 .collect(),
-        ))
+        )))
     }
 }
 
@@ -825,8 +835,8 @@ mod tests {
         runtime_input: &RuntimeInput,
         components: &CycloneDXComponents,
         vendored_dependencies: VendoredDependencies,
-    ) -> BTreeMap<String, Vec<String>> {
-        CycloneDXDependencies::assemble(
+    ) -> Result<BTreeMap<String, Vec<String>>> {
+        Ok(CycloneDXDependencies::assemble(
             components,
             &Derivation::from_store_path(&format!("/nix/store/{target}")),
             &extra_paths
@@ -838,12 +848,12 @@ mod tests {
             false,
             vendored_dependencies,
             &BTreeMap::new(),
-        )
+        )?
         .0
         .0
         .into_iter()
         .map(|dependency| (dependency.dependency_ref, dependency.dependencies))
-        .collect()
+        .collect())
     }
 
     fn edges(edges: &[(&str, &[&str])]) -> BTreeMap<String, Vec<String>> {
@@ -859,7 +869,7 @@ mod tests {
     }
 
     #[test]
-    fn root_without_references_reaches_extra_paths() {
+    fn root_without_references_reaches_extra_paths() -> Result<()> {
         let runtime_input = runtime_input(&[
             ("r-image", &[]),
             ("a-git-2.0", &["b-hello-1.0"]),
@@ -874,7 +884,7 @@ mod tests {
                 &runtime_input,
                 &components(&runtime_input),
                 VendoredDependencies::new()
-            ),
+            )?,
             edges(&[
                 ("a-git-2.0", &["b-hello-1.0"]),
                 ("b-hello-1.0", &[]),
@@ -882,10 +892,11 @@ mod tests {
                 ("r-image", &["a-git-2.0", "d-curl-1.0"]),
             ])
         );
+        Ok(())
     }
 
     #[test]
-    fn root_depends_on_all_outputs_at_build_time() {
+    fn root_depends_on_all_outputs_at_build_time() -> Result<()> {
         let drv = "/nix/store/x9fcdk0wv2glz5n5ylx6wsjiq3b8zsvb-tool.drv";
         let derivation = |path: &str, output_name: &str, build_references: &[&str]| Derivation {
             path: format!("/nix/store/{path}"),
@@ -921,7 +932,7 @@ mod tests {
             true,
             VendoredDependencies::new(),
             &BTreeMap::new(),
-        )
+        )?
         .0
         .0
         .into_iter()
@@ -936,6 +947,7 @@ mod tests {
                 ("t-tool-bin", &["c-cc-1.0", "d-doxygen-1.0"]),
             ])
         );
+        Ok(())
     }
 
     #[test]
@@ -976,7 +988,7 @@ mod tests {
                 &runtime_input,
                 &components,
                 vendored_dependencies
-            ),
+            )?,
             edges(&[
                 ("contourpy", &["matplotlib"]),
                 ("idna", &[]),
@@ -989,7 +1001,7 @@ mod tests {
     }
 
     #[test]
-    fn duplicates_keep_their_dependencies() {
+    fn duplicates_keep_their_dependencies() -> Result<()> {
         let runtime_input = RuntimeInput {
             paths: paths(&[
                 "/nix/store/r-app-1.0",
@@ -1033,7 +1045,7 @@ mod tests {
             false,
             VendoredDependencies::new(),
             &aliases,
-        )
+        )?
         .0
         .0
         .into_iter()
@@ -1052,6 +1064,43 @@ mod tests {
                 ("r-app-1.0".into(), vec!["a-bash-5.3".into()]),
             ])
         );
+        Ok(())
+    }
+
+    #[test]
+    fn unreachable_components_are_an_error() -> Result<()> {
+        let directory =
+            std::env::temp_dir().join(format!("bombon-unreachable-{}", std::process::id()));
+        fs::create_dir_all(&directory)?;
+        fs::write(
+            directory.join("bom.json"),
+            serde_json::json!({
+                "bomFormat": "CycloneDX",
+                "specVersion": "1.5",
+                "version": 1,
+                "components": [{"type": "library", "name": "orphan", "bom-ref": "orphan"}],
+            })
+            .to_string(),
+        )?;
+
+        // The owner of the vendored BOM isn't part of the closure, so nothing leads to it.
+        let runtime_input = runtime_input(&[("r-app-1.0", &[])]);
+        let mut components = components(&runtime_input);
+        let vendored_dependencies =
+            components.extend_from_directory(&directory, "/nix/store/o-tool-1.0")?;
+        fs::remove_dir_all(&directory)?;
+
+        assert!(
+            assemble(
+                "r-app-1.0",
+                &[],
+                &runtime_input,
+                &components,
+                vendored_dependencies
+            )
+            .is_err()
+        );
+        Ok(())
     }
 
     #[test]

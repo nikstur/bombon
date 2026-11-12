@@ -98,7 +98,7 @@ pub fn transform(
         include_buildtime_dependencies,
         vendored_dependencies,
         &aliases,
-    );
+    )?;
 
     let bom = CycloneDXBom::build(
         target_derivation,
