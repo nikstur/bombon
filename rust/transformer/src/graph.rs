@@ -22,6 +22,16 @@ impl Graph {
         self.0.entry(dependent).or_default().insert(dependency);
     }
 
+    /// Add all nodes and edges of `other`.
+    pub fn extend(&mut self, other: Graph) {
+        for (dependent, dependencies) in other.0 {
+            self.add_node(dependent.clone());
+            for dependency in dependencies {
+                self.add_edge(dependent.clone(), dependency);
+            }
+        }
+    }
+
     /// Merge each node in `aliases` into the node it maps to, combining their edges.
     pub fn merge(&mut self, aliases: &BTreeMap<String, String>) {
         let resolve = |node: String| aliases.get(&node).cloned().unwrap_or(node);
@@ -40,6 +50,35 @@ impl Graph {
         for dependencies in self.0.values_mut() {
             dependencies.retain(|dependency| keep.contains(dependency));
         }
+    }
+
+    /// Remove every node not in `keep`, connecting its dependents directly to its dependencies.
+    ///
+    /// Each kept node depends on every kept node it reached directly or only through removed nodes.
+    pub fn contract(&mut self, keep: &BTreeSet<String>) {
+        self.0 = self
+            .0
+            .keys()
+            .filter(|node| keep.contains(*node))
+            .map(|node| (node.clone(), self.nearest_kept(node, keep)))
+            .collect();
+    }
+
+    /// The kept nodes `node` reaches without passing through another kept node.
+    fn nearest_kept(&self, node: &str, keep: &BTreeSet<String>) -> BTreeSet<String> {
+        let mut reached = BTreeSet::new();
+        let mut removed = BTreeSet::new();
+        let mut todo: Vec<&String> = self.0.get(node).into_iter().flatten().collect();
+        while let Some(dependency) = todo.pop() {
+            if keep.contains(dependency) {
+                if dependency != node {
+                    reached.insert(dependency.clone());
+                }
+            } else if removed.insert(dependency) {
+                todo.extend(self.0.get(dependency).into_iter().flatten());
+            }
+        }
+        reached
     }
 
     /// The nodes and the dependencies of each node.
@@ -93,6 +132,64 @@ mod tests {
         assert_eq!(
             g.into_inner(),
             BTreeMap::from([("a".into(), set(&["c"])), ("c".into(), set(&[]))])
+        );
+    }
+
+    #[test]
+    fn contract_connects_through_removed_nodes() {
+        let mut g = graph(&[("a", "b"), ("b", "c"), ("c", "d"), ("a", "e")]);
+        g.contract(&set(&["a", "d", "e"]));
+        assert_eq!(
+            g.into_inner(),
+            BTreeMap::from([
+                ("a".into(), set(&["d", "e"])),
+                ("d".into(), set(&[])),
+                ("e".into(), set(&[])),
+            ])
+        );
+    }
+
+    #[test]
+    fn contract_keeps_indirect_edges_to_otherwise_reachable_nodes() {
+        // `unit` is not a component, and `target` reaches `server` through `app` as well.
+        let mut g = graph(&[
+            ("target", "unit"),
+            ("unit", "server"),
+            ("target", "app"),
+            ("app", "server"),
+        ]);
+        g.contract(&set(&["target", "app", "server"]));
+        assert_eq!(
+            g.into_inner(),
+            BTreeMap::from([
+                ("app".into(), set(&["server"])),
+                ("server".into(), set(&[])),
+                ("target".into(), set(&["app", "server"])),
+            ])
+        );
+    }
+
+    #[test]
+    fn contract_keeps_direct_edges() {
+        let mut g = graph(&[("a", "c"), ("a", "b"), ("b", "c")]);
+        g.contract(&set(&["a", "b", "c"]));
+        assert_eq!(
+            g.into_inner(),
+            BTreeMap::from([
+                ("a".into(), set(&["b", "c"])),
+                ("b".into(), set(&["c"])),
+                ("c".into(), set(&[])),
+            ])
+        );
+    }
+
+    #[test]
+    fn contract_handles_cycles_through_removed_nodes() {
+        let mut g = graph(&[("a", "b"), ("b", "c"), ("c", "b"), ("c", "a"), ("c", "d")]);
+        g.contract(&set(&["a", "d"]));
+        assert_eq!(
+            g.into_inner(),
+            BTreeMap::from([("a".into(), set(&["d"])), ("d".into(), set(&[]))])
         );
     }
 }

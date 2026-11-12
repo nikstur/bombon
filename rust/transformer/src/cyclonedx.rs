@@ -267,8 +267,8 @@ impl CycloneDXDependencies {
     ///
     /// Edges are restricted to refs that actually exist in the final BOM, so the graph stays
     /// valid after filtering and deduplication. An edge to a removed duplicate goes to the
-    /// component kept in its place. Entries are merged by ref so no `dependency_ref` appears
-    /// twice.
+    /// component kept in its place, and a runtime edge to a filtered-out ref goes to what that ref
+    /// depends on. Entries are merged by ref so no `dependency_ref` appears twice.
     pub fn assemble(
         components: &CycloneDXComponents,
         target_derivation: &Derivation,
@@ -288,18 +288,19 @@ impl CycloneDXDependencies {
                 graph.add_edge(bom_ref(path), bom_ref(reference));
             }
         }
-        if include_buildtime_dependencies {
-            for derivation in buildtime_input.0.values() {
-                graph.add_node(bom_ref(&derivation.path));
-                for reference in &derivation.build_references {
-                    graph.add_edge(bom_ref(&derivation.path), bom_ref(reference));
-                }
-            }
-        }
         for dependency in vendored_dependencies.0 {
             graph.add_node(dependency.dependency_ref.clone());
             for sub in dependency.dependencies {
                 graph.add_edge(dependency.dependency_ref.clone(), sub);
+            }
+        }
+        let mut buildtime = Graph::default();
+        if include_buildtime_dependencies {
+            for derivation in buildtime_input.0.values() {
+                buildtime.add_node(bom_ref(&derivation.path));
+                for reference in &derivation.build_references {
+                    buildtime.add_edge(bom_ref(&derivation.path), bom_ref(reference));
+                }
             }
         }
 
@@ -308,7 +309,12 @@ impl CycloneDXDependencies {
         let mut aliases = components.aliases();
         aliases.remove(&root);
         graph.merge(&aliases);
-        graph.restrict(&present);
+        graph.contract(&present);
+        // Build-time paths mostly run through stdenv, setup hooks and bootstrap stages, so
+        // contracting them would make nearly every component depend on nearly every other one.
+        buildtime.merge(&aliases);
+        buildtime.restrict(&present);
+        graph.extend(buildtime);
 
         // Declare every component as a node, including leaves with no dependencies of
         // their own: the CycloneDX spec (as required by BSI TR-03183-2 §5.1) mandates
