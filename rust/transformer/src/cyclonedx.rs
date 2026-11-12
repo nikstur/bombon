@@ -30,6 +30,7 @@ use crate::buildtime_input::BuildtimeInput;
 use crate::derivation::{self, Derivation, Meta, Src};
 use crate::hash::{self, SriHash};
 use crate::runtime_input::RuntimeInput;
+use crate::transform::Include;
 
 /// Strip the `/nix/store/` prefix to match how component bom-refs are derived from store paths.
 fn bom_ref(store_path: &str) -> String {
@@ -229,9 +230,10 @@ impl VendoredDependencies {
 pub struct CycloneDXDependencies(Dependencies);
 
 impl CycloneDXDependencies {
-    /// Assemble the `CycloneDX` dependency graph. Three sources of edges are combined:
+    /// Assemble the `CycloneDX` dependency graph. Four sources of edges are combined:
     ///   - the Nix runtime reference graph (from `exportReferencesGraph`), keyed by store path
     ///   - the Nix build-time reference graph (each derivation's direct build inputs)
+    ///   - the libraries each static derivation links in (its host build inputs)
     ///   - the language-level graphs carried by the vendored SBOMs, keyed by purl
     ///
     /// Edges are restricted to refs that actually exist in the final BOM, so the graph stays
@@ -242,7 +244,7 @@ impl CycloneDXDependencies {
         target_derivation: &Derivation,
         runtime_input: &RuntimeInput,
         buildtime_input: &BuildtimeInput,
-        include_buildtime_dependencies: bool,
+        include: Include,
         vendored_dependencies: VendoredDependencies,
     ) -> Self {
         let mut present = components.bom_refs();
@@ -262,18 +264,22 @@ impl CycloneDXDependencies {
                 }
             }
         }
-        if include_buildtime_dependencies {
-            for derivation in buildtime_input.0.values() {
-                let dependent = bom_ref(&derivation.path);
-                if !present.contains(&dependent) {
-                    continue;
-                }
-                let entry = graph.entry(dependent.clone()).or_default();
-                for reference in &derivation.build_references {
-                    let dependency = bom_ref(reference);
-                    if dependency != dependent && present.contains(&dependency) {
-                        entry.insert(dependency);
-                    }
+        for derivation in buildtime_input.0.values() {
+            let references = include
+                .buildtime_dependencies
+                .then_some(&derivation.build_references)
+                .into_iter()
+                .chain(include.static_libraries.then_some(&derivation.host_inputs))
+                .flatten();
+            let dependent = bom_ref(&derivation.path);
+            if !present.contains(&dependent) {
+                continue;
+            }
+            let entry = graph.entry(dependent.clone()).or_default();
+            for reference in references {
+                let dependency = bom_ref(reference);
+                if dependency != dependent && present.contains(&dependency) {
+                    entry.insert(dependency);
                 }
             }
         }
