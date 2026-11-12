@@ -36,6 +36,11 @@
   same derivation) and the dependencies on it now belong to the component kept
   in its place. Of the duplicates, a store path from the runtime closure is
   kept, then the `out` output, then one with evaluated metadata.
+- Fixed build-time dependencies being deduplicated by their name with
+  `includeBuildtimeDependencies`. All outputs of a derivation and the stages
+  of the bootstrap share a name, so only one arbitrary store path per name was
+  kept (e.g. only the `dev` output of curl) and the dependencies on the others
+  were lost. They are now deduplicated like the runtime dependencies.
 
 ## 0.4.0
 

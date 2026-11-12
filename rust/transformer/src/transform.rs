@@ -3,7 +3,6 @@ use std::io::Write;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use itertools::Itertools;
 use regex::RegexSet;
 
 use crate::buildtime_input::BuildtimeInput;
@@ -48,8 +47,7 @@ pub fn transform(
         .0
         .clone()
         .into_values()
-        .filter(|derivation| !runtime_input.paths.contains(&derivation.path))
-        .unique_by(|d| d.name.clone().unwrap_or(d.path.clone()));
+        .filter(|derivation| !runtime_input.paths.contains(&derivation.path));
 
     let all_derivations: Box<dyn Iterator<Item = Derivation>> = if include_buildtime_dependencies {
         Box::new(runtime_derivations.chain(buildtime_derivations))

@@ -275,6 +275,59 @@ let
           [.components[] | select(.name == "multi") | ."bom-ref"] as $multi
           | ($multi | length) == 1 and ($multi[0] | endswith("-lib"))
         '';
+
+    # Only build inputs: the outputs of `multi` and the two derivations named
+    # `twin-1.0` each become one component, which keeps all their dependencies.
+    buildtime-outputs-and-namesakes =
+      let
+        leaf =
+          pname:
+          pkgs.stdenvNoCC.mkDerivation {
+            inherit pname;
+            version = "1.0";
+            buildCommand = "touch $out";
+          };
+        multi = pkgs.stdenvNoCC.mkDerivation {
+          pname = "multi";
+          version = "1.0";
+          outputs = [
+            "out"
+            "dev"
+          ];
+          buildCommand = ''
+            echo out > $out
+            echo dev > $dev
+          '';
+        };
+        twin =
+          dependency:
+          pkgs.stdenvNoCC.mkDerivation {
+            pname = "twin";
+            version = "1.0";
+            inherit dependency;
+            buildCommand = "touch $out";
+          };
+      in
+      buildBomAndCheck "buildtime-outputs-and-namesakes"
+        (pkgs.runCommand "buildtime-outputs-and-namesakes" {
+          multiDev = multi.dev;
+          twinA = twin (leaf "leaf-a");
+          twinB = twin (leaf "leaf-b");
+        } "touch $out")
+        buildtimeOptions
+        ''
+          .metadata.component."bom-ref" as $root
+          | (.dependencies[] | select(.ref == $root) | .dependsOn) as $direct
+          | [.components[] | select(.name == "multi") | ."bom-ref"] as $multi
+          | [.components[] | select(.name == "twin") | ."bom-ref"] as $twin
+          | [.components[] | select(.name | startswith("leaf-")) | ."bom-ref"] as $leaves
+          | ($multi | length) == 1
+            and ($multi[0] | endswith("-dev") | not)
+            and ($twin | length) == 1
+            and ($leaves | length) == 2
+            and ($direct | contains($multi + $twin))
+            and (.dependencies[] | select(.ref == $twin[0]) | .dependsOn | contains($leaves))
+        '';
   };
 in
 genAttrsFromDrvs testDerivations buildBomAndValidate // checks
