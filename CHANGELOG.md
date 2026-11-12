@@ -13,6 +13,9 @@
 - Added `passthruVendoredSbom.go` to generate SBOMs for vendored Go
   dependencies of packages built with `buildGoModule`. The SBOM is generated
   with `cyclonedx-gomod`.
+- Added `passthruVendoredSbom.composer` to generate SBOMs for vendored Composer
+  dependencies of packages built with `buildComposerProject2`. The SBOM is
+  generated with the CycloneDX Composer plugin.
 - Added emitting a CycloneDX dependency graph spanning runtime dependencies,
   vendored language-level SBOMs' graphs, and optionally build-time dependencies
   via the `includeBuildtimeDependencies` flag.
