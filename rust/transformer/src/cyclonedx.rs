@@ -311,14 +311,18 @@ impl CycloneDXDependencies {
     ///   - the language-level graphs carried by the vendored SBOMs, keyed by purl
     ///
     /// The runtime and vendored edges and the build-time edges each form a graph over all store
-    /// paths and refs. Nodes of components removed by [`CycloneDXComponents::deduplicate`] are
-    /// merged into the components kept in their place (`aliases`). Every node that is not a
-    /// component in the final BOM (e.g. because it was filtered out) is then contracted, so its
-    /// dependents depend directly on its dependencies. At build time, such an indirect edge is
-    /// only added where the dependent doesn't reach its dependency otherwise.
+    /// paths and refs. The root depends on the `extra_paths` and, with build-time dependencies, on
+    /// all outputs of their derivations and of its own derivation, where the build closure starts.
+    /// Nodes of components removed by [`CycloneDXComponents::deduplicate`] are merged into the
+    /// components kept in their place (`aliases`). Every node that is not a component in the final
+    /// BOM (e.g. because it was filtered out) is then contracted, so its dependents depend directly
+    /// on its dependencies. At build time, such an indirect edge is only added where the dependent
+    /// doesn't reach its dependency otherwise.
+    #[allow(clippy::too_many_arguments)]
     pub fn assemble(
         components: &CycloneDXComponents,
         target_derivation: &Derivation,
+        extra_paths: &[String],
         runtime_input: &RuntimeInput,
         buildtime_input: &BuildtimeInput,
         include_buildtime_dependencies: bool,
@@ -336,6 +340,9 @@ impl CycloneDXDependencies {
                 graph.add_edge(bom_ref(path), bom_ref(reference));
             }
         }
+        for extra_path in extra_paths {
+            graph.add_edge(root.clone(), bom_ref(extra_path));
+        }
         for dependency in vendored_dependencies.0 {
             graph.add_node(dependency.dependency_ref.clone());
             for sub in dependency.dependencies {
@@ -344,8 +351,19 @@ impl CycloneDXDependencies {
         }
         let mut buildtime = Graph::default();
         if include_buildtime_dependencies {
+            let starts: BTreeSet<&String> = std::iter::once(&target_derivation.path)
+                .chain(extra_paths)
+                .filter_map(|path| buildtime_input.0.get(path)?.drv_path.as_ref())
+                .collect();
             for derivation in buildtime_input.0.values() {
                 buildtime.add_node(bom_ref(&derivation.path));
+                if derivation
+                    .drv_path
+                    .as_ref()
+                    .is_some_and(|drv_path| starts.contains(drv_path))
+                {
+                    buildtime.add_edge(root.clone(), bom_ref(&derivation.path));
+                }
                 for reference in &derivation.build_references {
                     buildtime.add_edge(bom_ref(&derivation.path), bom_ref(reference));
                 }
@@ -803,6 +821,7 @@ mod tests {
 
     fn assemble(
         target: &str,
+        extra_paths: &[&str],
         runtime_input: &RuntimeInput,
         components: &CycloneDXComponents,
         vendored_dependencies: VendoredDependencies,
@@ -810,6 +829,10 @@ mod tests {
         CycloneDXDependencies::assemble(
             components,
             &Derivation::from_store_path(&format!("/nix/store/{target}")),
+            &extra_paths
+                .iter()
+                .map(|path| format!("/nix/store/{path}"))
+                .collect::<Vec<_>>(),
             runtime_input,
             &BuildtimeInput(BTreeMap::new()),
             false,
@@ -833,6 +856,86 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    #[test]
+    fn root_without_references_reaches_extra_paths() {
+        let runtime_input = runtime_input(&[
+            ("r-image", &[]),
+            ("a-git-2.0", &["b-hello-1.0"]),
+            ("b-hello-1.0", &[]),
+            ("c-env", &["d-curl-1.0"]),
+            ("d-curl-1.0", &[]),
+        ]);
+        assert_eq!(
+            assemble(
+                "r-image",
+                &["a-git-2.0", "c-env"],
+                &runtime_input,
+                &components(&runtime_input),
+                VendoredDependencies::new()
+            ),
+            edges(&[
+                ("a-git-2.0", &["b-hello-1.0"]),
+                ("b-hello-1.0", &[]),
+                ("d-curl-1.0", &[]),
+                ("r-image", &["a-git-2.0", "d-curl-1.0"]),
+            ])
+        );
+    }
+
+    #[test]
+    fn root_depends_on_all_outputs_at_build_time() {
+        let drv = "/nix/store/x9fcdk0wv2glz5n5ylx6wsjiq3b8zsvb-tool.drv";
+        let derivation = |path: &str, output_name: &str, build_references: &[&str]| Derivation {
+            path: format!("/nix/store/{path}"),
+            drv_path: Some(drv.to_string()),
+            name: Some("tool".to_string()),
+            output_name: Some(output_name.to_string()),
+            build_references: build_references
+                .iter()
+                .map(|r| format!("/nix/store/{r}"))
+                .collect(),
+            ..Derivation::default()
+        };
+        // Without a version, neither output is a component.
+        let bin = derivation("t-tool-bin", "bin", &["c-cc-1.0"]);
+        let lib = derivation("t-tool-lib", "lib", &["c-cc-1.0", "d-doxygen-1.0"]);
+        let cc = Derivation::from_store_path("/nix/store/c-cc-1.0");
+        let doxygen = Derivation::from_store_path("/nix/store/d-doxygen-1.0");
+        let buildtime_input = BuildtimeInput(
+            [&bin, &lib, &cc, &doxygen]
+                .into_iter()
+                .map(|d| (d.path.clone(), d.clone()))
+                .collect(),
+        );
+        let runtime_input = runtime_input(&[("t-tool-bin", &[])]);
+        let components = CycloneDXComponents::from_derivations([cc, doxygen]);
+
+        let dependencies = CycloneDXDependencies::assemble(
+            &components,
+            &bin,
+            &[],
+            &runtime_input,
+            &buildtime_input,
+            true,
+            VendoredDependencies::new(),
+            &BTreeMap::new(),
+        )
+        .0
+        .0
+        .into_iter()
+        .map(|dependency| (dependency.dependency_ref, dependency.dependencies))
+        .collect::<BTreeMap<_, _>>();
+
+        assert_eq!(
+            dependencies,
+            edges(&[
+                ("c-cc-1.0", &[]),
+                ("d-doxygen-1.0", &[]),
+                ("t-tool-bin", &["c-cc-1.0", "d-doxygen-1.0"]),
+            ])
+        );
     }
 
     #[test]
@@ -869,6 +972,7 @@ mod tests {
         assert_eq!(
             assemble(
                 "r-app-1.0",
+                &[],
                 &runtime_input,
                 &components,
                 vendored_dependencies
@@ -923,6 +1027,7 @@ mod tests {
         let dependencies = CycloneDXDependencies::assemble(
             &components,
             &Derivation::from_store_path("/nix/store/r-app-1.0"),
+            &[],
             &runtime_input,
             &BuildtimeInput(BTreeMap::new()),
             false,

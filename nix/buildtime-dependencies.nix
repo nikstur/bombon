@@ -89,6 +89,8 @@ let
     ] drv)
     // {
       path = drv.outPath;
+      # Identifies the outputs of the target and the extra paths, which the root depends on.
+      inherit (drv) drvPath;
       patches = lib.flatten (drv.patches or [ ]);
       # The store paths of this derivation's direct build-time dependencies, so the transformer can emit build-time `dependsOn` edges.
       buildReferences = lib.unique (map (o: o.outPath) (lib.concatLists (drvDeps drv)));

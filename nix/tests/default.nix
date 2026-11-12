@@ -329,6 +329,27 @@ let
             and (.dependencies[] | select(.ref == $twin[0]) | .dependsOn | contains($leaves))
         '';
 
+    # An image doesn't reference its contents; they are passed as extraPaths.
+    image =
+      buildBomAndCheck "image"
+        (pkgs.runCommand "image"
+          {
+            __structuredAttrs = true;
+            unsafeDiscardReferences.out = true;
+          }
+          ''
+            mkdir $out
+            echo ${pkgs.hello} > $out/contents
+          ''
+        )
+        { extraPaths = [ pkgs.hello ]; }
+        ''
+          .metadata.component."bom-ref" as $root
+          | [.components[] | select(.name == "hello") | ."bom-ref"] as $hello
+          | ($hello | length) == 1
+            and (.dependencies[] | select(.ref == $root) | .dependsOn | index($hello[0]))
+        '';
+
     # The script has no version, so it is not a component, but what it runs
     # must still be connected to the root.
     versionless-script =

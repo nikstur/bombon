@@ -52,6 +52,11 @@
   connected to the rest of the dependency graph. The derivation that owns the
   vendored SBOM now depends on every component of it that nothing else in it
   depends on.
+- Fixed `extraPaths` not being connected to the root of the dependency graph.
+  The contents of an image built with `unsafeDiscardReferences`, for example,
+  were not reachable from `metadata.component` at all. The root now depends
+  on every path in `extraPaths` and, with `includeBuildtimeDependencies`, on
+  all outputs of their derivations and of its own derivation.
 
 ## 0.4.0
 
