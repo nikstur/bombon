@@ -9,7 +9,7 @@ use cyclonedx_bom::external_models::normalized_string::NormalizedString;
 use cyclonedx_bom::external_models::spdx::SpdxExpression;
 use cyclonedx_bom::external_models::uri::{Purl, Uri};
 use cyclonedx_bom::models::attached_text::AttachedText;
-use cyclonedx_bom::models::bom::{Bom, UrnUuid};
+use cyclonedx_bom::models::bom::{Bom, SpecVersion, UrnUuid};
 use cyclonedx_bom::models::code::{Diff, Patch, PatchClassification, Patches};
 use cyclonedx_bom::models::component::{Classification, Component, Components, Cpe, Scope};
 use cyclonedx_bom::models::component::{
@@ -47,7 +47,7 @@ impl CycloneDXBom {
     /// Serialize to JSON as bytes.
     pub fn serialize(self) -> Result<Vec<u8>> {
         let mut output = Vec::<u8>::new();
-        self.0.output_as_json_v1_5(&mut output)?;
+        self.0.output_as_json(&mut output, SpecVersion::V1_7)?;
         Ok(output)
     }
 
@@ -302,6 +302,7 @@ impl CycloneDXDependencies {
                 .map(|(dependency_ref, dependencies)| Dependency {
                     dependency_ref,
                     dependencies: dependencies.into_iter().collect(),
+                    provides: Vec::new(),
                 })
                 .collect(),
         ))
@@ -430,12 +431,13 @@ fn cpes_to_evidence(possible_cpes: &[derivation::Cpe]) -> Option<ComponentEviden
     );
     // ComponentEvidence and Identity do not have Default implementations.
     Some(ComponentEvidence {
-        identity: Some(Identity {
+        identity: Some(vec![Identity {
             field: IdentityField::Cpe,
             methods: Some(methods),
             confidence: None,
             tools: None,
-        }),
+            concluded_value: None,
+        }]),
         licenses: None,
         copyright: None,
         occurrences: None,
@@ -459,6 +461,7 @@ fn convert_src(src: &Src) -> Vec<ExternalReference> {
             url: string_to_url(u),
             comment: None,
             hashes: src.hash.clone().and_then(|s| convert_hash(&s)),
+            properties: None,
         })
         .collect()
 }
@@ -490,6 +493,7 @@ fn convert_homepage(homepage: &str) -> ExternalReference {
         url: string_to_url(homepage),
         comment: None,
         hashes: None,
+        properties: None,
     }
 }
 
@@ -504,6 +508,8 @@ fn metadata_from_derivation(derivation: Derivation) -> Metadata {
         licenses: None,
         properties: None,
         lifecycles: None,
+        manufacturer: None,
+        distribution_constraints: None,
     }
 }
 
