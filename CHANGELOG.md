@@ -31,6 +31,11 @@
 - Fixed building an SBOM realising the whole build closure of the package,
   even without `includeBuildtimeDependencies`. Only the patches and vendored
   SBOMs that the transformer reads are now built or substituted.
+- Fixed dependencies being lost when components are deduplicated by their
+  PURL. The dependencies of a removed duplicate (e.g. another output of the
+  same derivation) and the dependencies on it now belong to the component kept
+  in its place. Of the duplicates, a store path from the runtime closure is
+  kept, then the `out` output, then one with evaluated metadata.
 
 ## 0.4.0
 

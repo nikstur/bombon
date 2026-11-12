@@ -87,7 +87,7 @@ pub fn transform(
         }
     }
 
-    components.deduplicate();
+    let aliases = components.deduplicate(&runtime_input.paths);
 
     let dependencies = CycloneDXDependencies::assemble(
         &components,
@@ -96,6 +96,7 @@ pub fn transform(
         &buildtime_input,
         include_buildtime_dependencies,
         vendored_dependencies,
+        &aliases,
     );
 
     let bom = CycloneDXBom::build(

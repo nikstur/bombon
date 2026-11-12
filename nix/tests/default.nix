@@ -196,5 +196,85 @@ let
 
   genAttrsFromDrvs =
     drvs: f: builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.name (f d.drv d.options)) drvs);
+
+  # Check the SBOM of `drv` with a jq expression that must evaluate to true.
+  buildBomAndCheck =
+    name: drv: options: check:
+    pkgs.runCommand "${name}-bom-check" { nativeBuildInputs = [ pkgs.jq ]; } ''
+      jq --exit-status ${pkgs.lib.escapeShellArg check} "${buildBom drv options}"
+      touch $out
+    '';
+
+  checks = {
+    # Only the `bin` output is referenced directly, but it is merged into
+    # `out`, so the edge to it must be redirected.
+    openssl-outputs =
+      buildBomAndCheck "openssl-outputs"
+        (pkgs.runCommand "openssl-outputs" { inherit (pkgs) openssl; } ''
+          mkdir $out
+          ln -s ${pkgs.openssl.bin} $out/bin
+        '')
+        { }
+        ''
+          .metadata.component."bom-ref" as $root
+          | [.components[] | select(.name == "openssl")] as $openssl
+          | ($openssl | length) == 1
+            and ($openssl[0]."bom-ref" | endswith("-bin") | not)
+            and (.dependencies[] | select(.ref == $root) | .dependsOn | index($openssl[0]."bom-ref"))
+        '';
+
+    # Two derivations with the same name and version are one component, which
+    # depends on what either of them depends on.
+    namesakes =
+      let
+        twin =
+          dependency:
+          pkgs.stdenvNoCC.mkDerivation {
+            pname = "twin";
+            version = "1.0";
+            buildCommand = "ln -s ${dependency} $out";
+          };
+      in
+      buildBomAndCheck "namesakes"
+        (pkgs.runCommand "namesakes" { } ''
+          mkdir $out
+          ln -s ${twin pkgs.hello} $out/a
+          ln -s ${twin pkgs.zlib} $out/b
+        '')
+        { }
+        ''
+          [.components[] | select(.name == "twin") | ."bom-ref"] as $twin
+          | [.components[] | select(.name == "hello" or .name == "zlib") | ."bom-ref"] as $dependencies
+          | ($twin | length) == 1
+            and ($dependencies | length) == 2
+            and (.dependencies[] | select(.ref == $twin[0]) | .dependsOn | contains($dependencies))
+        '';
+
+    # Only the `lib` output is shipped, so it is kept over the build-time `out`.
+    runtime-output =
+      let
+        multi = pkgs.stdenvNoCC.mkDerivation {
+          pname = "multi";
+          version = "1.0";
+          outputs = [
+            "out"
+            "lib"
+          ];
+          buildCommand = ''
+            echo out > $out
+            echo lib > $lib
+          '';
+        };
+      in
+      buildBomAndCheck "runtime-output"
+        (pkgs.runCommand "runtime-output" { multiLib = multi.lib; } ''
+          ln -s $multiLib $out
+        '')
+        buildtimeOptions
+        ''
+          [.components[] | select(.name == "multi") | ."bom-ref"] as $multi
+          | ($multi | length) == 1 and ($multi[0] | endswith("-lib"))
+        '';
+  };
 in
-genAttrsFromDrvs testDerivations buildBomAndValidate
+genAttrsFromDrvs testDerivations buildBomAndValidate // checks
