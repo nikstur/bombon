@@ -41,6 +41,12 @@
   of the bootstrap share a name, so only one arbitrary store path per name was
   kept (e.g. only the `dev` output of curl) and the dependencies on the others
   were lost. They are now deduplicated like the runtime dependencies.
+- Fixed dependencies being lost in the dependency graph when they go through a
+  store path that is not a component (e.g. one without a version, a `doc` or
+  `man` output, or one matched by `excludes`). A component now depends on
+  every component it refers to directly or only through such store paths at
+  runtime. At build time, it only depends on such a component through these
+  store paths if it doesn't reach it otherwise.
 
 ## 0.4.0
 

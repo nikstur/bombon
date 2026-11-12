@@ -328,6 +328,28 @@ let
             and ($direct | contains($multi + $twin))
             and (.dependencies[] | select(.ref == $twin[0]) | .dependsOn | contains($leaves))
         '';
+
+    # The script has no version, so it is not a component, but what it runs
+    # must still be connected to the root.
+    versionless-script =
+      buildBomAndCheck "versionless-script"
+        (pkgs.runCommand "versionless-script"
+          {
+            script = pkgs.writeShellScript "run-hello" "exec ${pkgs.hello}/bin/hello";
+          }
+          ''
+            mkdir $out
+            ln -s $script $out/run-hello
+          ''
+        )
+        { }
+        ''
+          .metadata.component."bom-ref" as $root
+          | [.components[] | select(.name == "hello") | ."bom-ref"] as $hello
+          | ($hello | length) == 1
+            and (.components | map(.name) | index("run-hello") | not)
+            and (.dependencies[] | select(.ref == $root) | .dependsOn | index($hello[0]))
+        '';
   };
 in
 genAttrsFromDrvs testDerivations buildBomAndValidate // checks

@@ -28,7 +28,7 @@ use sha2::{Digest, Sha256};
 
 use crate::buildtime_input::BuildtimeInput;
 use crate::derivation::{self, Derivation, Meta, Src};
-use crate::graph::Graph;
+use crate::graph::{Graph, IndirectEdges};
 use crate::hash::{self, SriHash};
 use crate::runtime_input::RuntimeInput;
 
@@ -290,10 +290,12 @@ impl CycloneDXDependencies {
     ///   - the Nix build-time reference graph (each derivation's direct build inputs)
     ///   - the language-level graphs carried by the vendored SBOMs, keyed by purl
     ///
-    /// The graph is first built over all store paths and refs. Nodes of components removed by
-    /// [`CycloneDXComponents::deduplicate`] are then merged into the components kept in their
-    /// place (`aliases`), and finally the graph is restricted to the refs that actually exist in
-    /// the final BOM, so it stays valid after filtering and deduplication.
+    /// The runtime and vendored edges and the build-time edges each form a graph over all store
+    /// paths and refs. Nodes of components removed by [`CycloneDXComponents::deduplicate`] are
+    /// merged into the components kept in their place (`aliases`). Every node that is not a
+    /// component in the final BOM (e.g. because it was filtered out) is then contracted, so its
+    /// dependents depend directly on its dependencies. At build time, such an indirect edge is
+    /// only added where the dependent doesn't reach its dependency otherwise.
     pub fn assemble(
         components: &CycloneDXComponents,
         target_derivation: &Derivation,
@@ -314,18 +316,19 @@ impl CycloneDXDependencies {
                 graph.add_edge(bom_ref(path), bom_ref(reference));
             }
         }
-        if include_buildtime_dependencies {
-            for derivation in buildtime_input.0.values() {
-                graph.add_node(bom_ref(&derivation.path));
-                for reference in &derivation.build_references {
-                    graph.add_edge(bom_ref(&derivation.path), bom_ref(reference));
-                }
-            }
-        }
         for dependency in vendored_dependencies.0 {
             graph.add_node(dependency.dependency_ref.clone());
             for sub in dependency.dependencies {
                 graph.add_edge(dependency.dependency_ref.clone(), sub);
+            }
+        }
+        let mut buildtime = Graph::default();
+        if include_buildtime_dependencies {
+            for derivation in buildtime_input.0.values() {
+                buildtime.add_node(bom_ref(&derivation.path));
+                for reference in &derivation.build_references {
+                    buildtime.add_edge(bom_ref(&derivation.path), bom_ref(reference));
+                }
             }
         }
 
@@ -334,7 +337,12 @@ impl CycloneDXDependencies {
         let mut aliases = aliases.clone();
         aliases.remove(&root);
         graph.merge(&aliases);
-        graph.restrict(&present);
+        graph.contract(&present, IndirectEdges::All);
+        // Build-time paths mostly run through stdenv, setup hooks and bootstrap stages, so only the
+        // edges through them that add reachability are kept.
+        buildtime.merge(&aliases);
+        buildtime.contract(&present, IndirectEdges::Reduced);
+        graph.extend(buildtime);
 
         // Declare every component as a node, including leaves with no dependencies of
         // their own: the CycloneDX spec (as required by BSI TR-03183-2 §5.1) mandates
