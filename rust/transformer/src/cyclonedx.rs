@@ -1,3 +1,4 @@
+use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Into;
 use std::fs;
@@ -94,17 +95,27 @@ fn derive_serial_number(data: &[u8]) -> UrnUuid {
     UrnUuid::from(uuid)
 }
 
-pub struct CycloneDXComponents(Components);
+pub struct CycloneDXComponents(Vec<CycloneDXComponent>);
+
+/// What deduplication needs to know about the store path a component was created from.
+#[derive(Default)]
+struct Origin {
+    runtime: bool,
+    output_name: Option<String>,
+    evaluated: bool,
+}
 
 impl CycloneDXComponents {
-    pub fn from_derivations(derivations: impl IntoIterator<Item = Derivation>) -> Self {
-        Self(Components(
+    pub fn from_derivations(
+        derivations: impl IntoIterator<Item = Derivation>,
+        runtime_paths: &BTreeSet<String>,
+    ) -> Self {
+        Self(
             derivations
                 .into_iter()
-                .map(CycloneDXComponent::from_derivation)
-                .map(CycloneDXComponent::into)
+                .map(|derivation| CycloneDXComponent::from_derivation(derivation, runtime_paths))
                 .collect(),
-        ))
+        )
     }
 
     /// Extend the `Components` with components read from multiple BOMs inside a directory.
@@ -125,12 +136,8 @@ impl CycloneDXComponents {
         let mut dependencies = Vec::new();
 
         // Insert the components from the original SBOM
-        for component in self.0.0.clone() {
-            let key = component
-                .bom_ref
-                .clone()
-                .unwrap_or_else(|| component.name.to_string());
-            m.entry(key).or_insert(component);
+        for component in std::mem::take(&mut self.0) {
+            m.entry(component.reference()).or_insert(component);
         }
 
         // Add the components from the vendored SBOMs
@@ -151,7 +158,7 @@ impl CycloneDXComponents {
                         .bom_ref
                         .clone()
                         .unwrap_or_else(|| component.name.to_string());
-                    m.entry(key).or_insert_with(|| component.clone());
+                    m.entry(key).or_insert_with(|| component.clone().into());
                 }
             }
             if let Some(deps) = bom.0.dependencies {
@@ -171,43 +178,66 @@ impl CycloneDXComponents {
             }
         }
 
-        self.0.0 = m.into_values().collect();
+        self.0 = m.into_values().collect();
         Ok(VendoredDependencies(dependencies))
     }
 
     /// The set of references of the components currently held.
     /// Keeps the dependency graph valid: edges to/from absent components are dropped.
     pub fn bom_refs(&self) -> BTreeSet<String> {
-        self.0
-            .0
-            .iter()
-            .map(|c| c.bom_ref.clone().unwrap_or_else(|| c.name.to_string()))
-            .collect()
+        self.0.iter().map(CycloneDXComponent::reference).collect()
     }
 
-    // Deduplicate components.
-    //
-    // Remove entries with duplicate PURLs, falling back to bom-refs, falling back to the name of
-    // the component.
+    /// Deduplicate components with the same [`CycloneDXComponent::identity`].
+    ///
+    /// The kept component records the references of the duplicates merged into it.
     pub fn deduplicate(&mut self) {
-        self.0.0 = self
-            .0
-            .0
-            .clone()
-            .into_iter()
-            .unique_by(|c: &Component| {
-                c.purl.as_ref().map_or(
-                    c.bom_ref.clone().unwrap_or(c.name.to_string()),
-                    std::string::ToString::to_string,
-                )
-            })
+        let mut duplicates: BTreeMap<String, Vec<CycloneDXComponent>> = BTreeMap::new();
+        for component in std::mem::take(&mut self.0) {
+            duplicates
+                .entry(component.identity())
+                .or_default()
+                .push(component);
+        }
+        self.0 = duplicates
+            .into_values()
+            .filter_map(merge_duplicates)
             .collect();
     }
+
+    /// The references of the duplicates removed by [`Self::deduplicate`], each mapped to the
+    /// reference of the component kept in its place.
+    pub fn aliases(&self) -> BTreeMap<String, String> {
+        let mut aliases = BTreeMap::new();
+        for component in &self.0 {
+            for merged in &component.merged {
+                aliases.insert(merged.clone(), component.reference());
+            }
+        }
+        aliases
+    }
+}
+
+/// Merge duplicates into the one that is kept: one from the runtime closure, then the `out`
+/// output, then one with evaluated metadata, then the first one.
+fn merge_duplicates(duplicates: Vec<CycloneDXComponent>) -> Option<CycloneDXComponent> {
+    duplicates
+        .into_iter()
+        .sorted_by_key(|component| {
+            let origin = &component.origin;
+            let is_out = origin.output_name.as_deref() == Some("out");
+            Reverse((origin.runtime, is_out, origin.evaluated))
+        })
+        .reduce(|mut kept, duplicate| {
+            kept.merged.push(duplicate.reference());
+            kept.merged.extend(duplicate.merged);
+            kept
+        })
 }
 
 impl From<CycloneDXComponents> for Components {
     fn from(value: CycloneDXComponents) -> Self {
-        value.0
+        Components(value.0.into_iter().map(Into::into).collect())
     }
 }
 
@@ -236,8 +266,9 @@ impl CycloneDXDependencies {
     ///   - the language-level graphs carried by the vendored SBOMs, keyed by purl
     ///
     /// Edges are restricted to refs that actually exist in the final BOM, so the graph stays
-    /// valid after filtering and deduplication. Entries are merged by ref so no `dependency_ref`
-    /// appears twice.
+    /// valid after filtering and deduplication. An edge to a removed duplicate goes to the
+    /// component kept in its place. Entries are merged by ref so no `dependency_ref` appears
+    /// twice.
     pub fn assemble(
         components: &CycloneDXComponents,
         target_derivation: &Derivation,
@@ -246,8 +277,9 @@ impl CycloneDXDependencies {
         include_buildtime_dependencies: bool,
         vendored_dependencies: VendoredDependencies,
     ) -> Self {
+        let root = bom_ref(&target_derivation.path);
         let mut present = components.bom_refs();
-        present.insert(bom_ref(&target_derivation.path));
+        present.insert(root.clone());
 
         let mut graph = Graph::default();
         for (path, references) in &runtime_input.references {
@@ -271,6 +303,11 @@ impl CycloneDXDependencies {
             }
         }
 
+        // The root is described by `metadata.component`, so it must keep its own bom-ref even when
+        // its component lost against a duplicate.
+        let mut aliases = components.aliases();
+        aliases.remove(&root);
+        graph.merge(&aliases);
         graph.restrict(&present);
 
         // Declare every component as a node, including leaves with no dependencies of
@@ -294,10 +331,20 @@ impl CycloneDXDependencies {
     }
 }
 
-struct CycloneDXComponent(Component);
+struct CycloneDXComponent {
+    component: Component,
+    origin: Origin,
+    /// The references of the duplicates merged into this component.
+    merged: Vec<String>,
+}
 
 impl CycloneDXComponent {
-    fn from_derivation(derivation: Derivation) -> Self {
+    fn from_derivation(derivation: Derivation, runtime_paths: &BTreeSet<String>) -> Self {
+        let origin = Origin {
+            runtime: runtime_paths.contains(&derivation.path),
+            output_name: derivation.output_name.clone(),
+            evaluated: derivation.meta.is_some(),
+        };
         let name = match derivation.pname {
             Some(pname) => pname,
             None => derivation.name.unwrap_or_default(),
@@ -357,13 +404,42 @@ impl CycloneDXComponent {
             });
         }
 
-        Self(component)
+        Self {
+            component,
+            origin,
+            merged: Vec::new(),
+        }
+    }
+
+    fn reference(&self) -> String {
+        self.component
+            .bom_ref
+            .clone()
+            .unwrap_or_else(|| self.component.name.to_string())
+    }
+
+    /// What duplicates have in common: the purl, falling back to the reference.
+    fn identity(&self) -> String {
+        self.component
+            .purl
+            .as_ref()
+            .map_or_else(|| self.reference(), ToString::to_string)
+    }
+}
+
+impl From<Component> for CycloneDXComponent {
+    fn from(component: Component) -> Self {
+        Self {
+            component,
+            origin: Origin::default(),
+            merged: Vec::new(),
+        }
     }
 }
 
 impl From<CycloneDXComponent> for Component {
     fn from(value: CycloneDXComponent) -> Self {
-        value.0
+        value.component
     }
 }
 
@@ -492,7 +568,7 @@ fn metadata_from_derivation(derivation: Derivation) -> Metadata {
         timestamp: None,
         tools: Some(metadata_tools()),
         authors: None,
-        component: Some(CycloneDXComponent::from_derivation(derivation).into()),
+        component: Some(CycloneDXComponent::from_derivation(derivation, &BTreeSet::new()).into()),
         manufacture: None,
         supplier: None,
         licenses: None,
@@ -547,6 +623,237 @@ fn convert_patches(patches: &[String]) -> Patches {
 mod tests {
     use super::*;
 
+    fn openssl_output(path: &str, output_name: &str) -> Derivation {
+        Derivation {
+            path: path.to_string(),
+            pname: Some("openssl".to_string()),
+            version: Some("3.6.4".to_string()),
+            output_name: Some(output_name.to_string()),
+            ..Derivation::default()
+        }
+    }
+
+    fn vendored(bom_ref: &str) -> CycloneDXComponent {
+        let mut component = Component::new(
+            Classification::Library,
+            "serde",
+            "1.0.219",
+            Some(bom_ref.to_string()),
+        );
+        component.purl = Purl::new("cargo", "serde", "1.0.219").ok();
+        component.into()
+    }
+
+    fn paths(paths: &[&str]) -> BTreeSet<String> {
+        paths.iter().map(ToString::to_string).collect()
+    }
+
+    fn runtime_input(closure: &[(&str, &[&str])]) -> RuntimeInput {
+        let store_path = |name: &str| format!("/nix/store/{name}");
+        RuntimeInput {
+            paths: closure.iter().map(|(path, _)| store_path(path)).collect(),
+            references: closure
+                .iter()
+                .map(|(path, references)| {
+                    (
+                        store_path(path),
+                        references.iter().map(|r| store_path(r)).collect(),
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    fn components(runtime_input: &RuntimeInput) -> CycloneDXComponents {
+        CycloneDXComponents::from_derivations(
+            runtime_input
+                .paths
+                .iter()
+                .map(|path| Derivation::from_store_path(path))
+                .filter(|derivation| derivation.version.is_some()),
+            &runtime_input.paths,
+        )
+    }
+
+    /// Deduplicate `components` and assemble their dependencies, like `transform` does.
+    fn assemble(
+        target: &str,
+        runtime_input: &RuntimeInput,
+        mut components: CycloneDXComponents,
+        vendored_dependencies: VendoredDependencies,
+    ) -> BTreeMap<String, Vec<String>> {
+        components.deduplicate();
+        CycloneDXDependencies::assemble(
+            &components,
+            &Derivation::from_store_path(&format!("/nix/store/{target}")),
+            runtime_input,
+            &BuildtimeInput(BTreeMap::new()),
+            false,
+            vendored_dependencies,
+        )
+        .0
+        .0
+        .into_iter()
+        .map(|dependency| (dependency.dependency_ref, dependency.dependencies))
+        .collect()
+    }
+
+    fn edges(edges: &[(&str, &[&str])]) -> BTreeMap<String, Vec<String>> {
+        edges
+            .iter()
+            .map(|(dependent, dependencies)| {
+                (
+                    (*dependent).to_string(),
+                    dependencies.iter().map(ToString::to_string).collect(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn deduplicate_merges_outputs_into_out() {
+        let bin = "/nix/store/a-openssl-3.6.4-bin";
+        let out = "/nix/store/b-openssl-3.6.4";
+        let dev = "/nix/store/c-openssl-3.6.4-dev";
+        let mut components = CycloneDXComponents::from_derivations(
+            [
+                openssl_output(bin, "bin"),
+                openssl_output(out, "out"),
+                openssl_output(dev, "dev"),
+            ],
+            &paths(&[bin, out, dev]),
+        );
+
+        components.deduplicate();
+
+        assert_eq!(
+            components.bom_refs(),
+            BTreeSet::from(["b-openssl-3.6.4".into()])
+        );
+        assert_eq!(
+            components.aliases(),
+            BTreeMap::from([
+                ("a-openssl-3.6.4-bin".into(), "b-openssl-3.6.4".into()),
+                ("c-openssl-3.6.4-dev".into(), "b-openssl-3.6.4".into()),
+            ])
+        );
+    }
+
+    #[test]
+    fn deduplicate_prefers_runtime_output_over_buildtime_out() {
+        let lib = "/nix/store/a-openssl-3.6.4-lib";
+        let out = "/nix/store/b-openssl-3.6.4";
+        let mut components = CycloneDXComponents::from_derivations(
+            [openssl_output(out, "out"), openssl_output(lib, "lib")],
+            &paths(&[lib]),
+        );
+
+        components.deduplicate();
+
+        assert_eq!(
+            components.bom_refs(),
+            BTreeSet::from(["a-openssl-3.6.4-lib".into()])
+        );
+    }
+
+    #[test]
+    fn deduplicate_prefers_evaluated_metadata_without_out() {
+        let bin = "/nix/store/a-openssl-3.6.4-bin";
+        let dev = "/nix/store/c-openssl-3.6.4-dev";
+        let dev_with_meta = Derivation {
+            meta: Some(Meta {
+                license: None,
+                homepage: None,
+                description: None,
+                identifiers: None,
+            }),
+            ..openssl_output(dev, "dev")
+        };
+        let mut components = CycloneDXComponents::from_derivations(
+            [openssl_output(bin, "bin"), dev_with_meta],
+            &paths(&[bin, dev]),
+        );
+
+        components.deduplicate();
+
+        assert_eq!(
+            components.bom_refs(),
+            BTreeSet::from(["c-openssl-3.6.4-dev".into()])
+        );
+    }
+
+    #[test]
+    fn deduplicate_merges_derivations_with_the_same_name_and_version() {
+        let dynamic = "/nix/store/b-openssl-3.6.4";
+        let r#static = "/nix/store/d-openssl-static-3.6.4";
+        let mut components = CycloneDXComponents::from_derivations(
+            [
+                openssl_output(dynamic, "out"),
+                openssl_output(r#static, "out"),
+            ],
+            &paths(&[dynamic, r#static]),
+        );
+
+        components.deduplicate();
+
+        assert_eq!(
+            components.aliases(),
+            BTreeMap::from([("d-openssl-static-3.6.4".into(), "b-openssl-3.6.4".into())])
+        );
+    }
+
+    #[test]
+    fn deduplicate_merges_vendored_components_by_purl() {
+        let mut components = CycloneDXComponents::from_derivations([], &BTreeSet::new());
+        components.0.extend([
+            vendored("registry+https://github.com/rust-lang/crates.io-index#serde@1.0.219"),
+            vendored("pkg:cargo/serde@1.0.219"),
+        ]);
+
+        components.deduplicate();
+
+        assert_eq!(
+            components.bom_refs(),
+            BTreeSet::from([
+                "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.219".into()
+            ])
+        );
+        assert_eq!(
+            components.aliases(),
+            BTreeMap::from([(
+                "pkg:cargo/serde@1.0.219".into(),
+                "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.219".into()
+            )])
+        );
+    }
+
+    #[test]
+    fn duplicates_keep_their_dependencies() {
+        let runtime_input = runtime_input(&[
+            ("r-app-1.0", &["b-bash-5.3"]),
+            ("b-bash-5.3", &["a-bash-5.3", "d-ncurses-6.5"]),
+            ("a-bash-5.3", &["c-readline-8.3"]),
+            ("c-readline-8.3", &[]),
+            ("d-ncurses-6.5", &[]),
+        ]);
+        let components = components(&runtime_input);
+
+        assert_eq!(
+            assemble(
+                "r-app-1.0",
+                &runtime_input,
+                components,
+                VendoredDependencies::new()
+            ),
+            edges(&[
+                ("a-bash-5.3", &["c-readline-8.3", "d-ncurses-6.5"]),
+                ("c-readline-8.3", &[]),
+                ("d-ncurses-6.5", &[]),
+                ("r-app-1.0", &["a-bash-5.3"]),
+            ])
+        );
+    }
+
     #[test]
     fn purl_from_meta_identifiers() -> Result<()> {
         let derivation: Derivation = serde_json::from_value(serde_json::json!({
@@ -556,7 +863,8 @@ mod tests {
             "patches": [],
             "meta": {"identifiers": {"purl": "pkg:github/jqlang/jq@jq-1.8.1"}},
         }))?;
-        let component: Component = CycloneDXComponent::from_derivation(derivation).into();
+        let component: Component =
+            CycloneDXComponent::from_derivation(derivation, &BTreeSet::new()).into();
         assert_eq!(
             component.purl.map(|purl| purl.to_string()).as_deref(),
             Some("pkg:github/jqlang/jq@jq-1.8.1")
@@ -564,6 +872,7 @@ mod tests {
 
         let component: Component = CycloneDXComponent::from_derivation(
             Derivation::from_store_path("/nix/store/b-hello-2.12"),
+            &BTreeSet::new(),
         )
         .into();
         assert_eq!(

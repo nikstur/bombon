@@ -206,8 +206,36 @@ let
 
   genAttrsFromDrvs =
     drvs: f: builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.name (f d.drv d.options)) drvs);
+
+  # Check the SBOM of `drv` with a jq expression that must evaluate to true.
+  buildBomAndCheck =
+    name: drv: options: check:
+    pkgs.runCommand "${name}-bom-check" { nativeBuildInputs = [ pkgs.jq ]; } ''
+      jq --exit-status ${pkgs.lib.escapeShellArg check} "${buildBom drv options}"
+      touch $out
+    '';
+
+  checks = {
+    # Only the `bin` output is referenced directly, but it is merged into
+    # `out`, so the edge to it must be redirected.
+    openssl-outputs =
+      buildBomAndCheck "openssl-outputs"
+        (pkgs.runCommand "openssl-outputs" { inherit (pkgs) openssl; } ''
+          mkdir $out
+          ln -s ${pkgs.openssl.bin} $out/bin
+        '')
+        { }
+        ''
+          .metadata.component."bom-ref" as $root
+          | [.components[] | select(.name == "openssl")] as $openssl
+          | ($openssl | length) == 1
+            and ($openssl[0]."bom-ref" | endswith("-bin") | not)
+            and (.dependencies[] | select(.ref == $root) | .dependsOn | index($openssl[0]."bom-ref"))
+        '';
+  };
 in
 genAttrsFromDrvs testDerivations buildBomAndValidate
+// checks
 // {
   # The src of hello is fetched from a mirror:// URL.
   mirror-url = pkgs.runCommand "mirror-url" { nativeBuildInputs = [ pkgs.jq ]; } ''
