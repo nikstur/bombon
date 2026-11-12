@@ -31,6 +31,15 @@
 - Fixed building an SBOM realising the whole build closure of the package,
   even without `includeBuildtimeDependencies`. Only the patches and vendored
   SBOMs that the transformer reads are now built or substituted.
+- Fixed components that describe a derivation being deduplicated by their
+  PURL, which only consists of the name and the version. All outputs of a
+  derivation (e.g. `out`, `bin` and `dev`) were collapsed into one component
+  and the dependencies on the removed outputs were lost. Different derivations
+  with the same name and version (e.g. a static and a dynamic build) were
+  collapsed as well. The outputs of a derivation are now merged into one
+  component, preferring `out`, and the dependencies on the other outputs point
+  to it. Different derivations are kept apart. Components from vendored SBOMs
+  are still deduplicated by their PURL.
 
 ## 0.4.0
 

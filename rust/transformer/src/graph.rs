@@ -22,6 +22,18 @@ impl Graph {
         self.0.entry(dependent).or_default().insert(dependency);
     }
 
+    /// Merge each node in `aliases` into the node it maps to, combining their edges.
+    pub fn merge(&mut self, aliases: &BTreeMap<String, String>) {
+        let resolve = |node: String| aliases.get(&node).cloned().unwrap_or(node);
+        for (dependent, dependencies) in std::mem::take(&mut self.0) {
+            let dependent = resolve(dependent);
+            self.add_node(dependent.clone());
+            for dependency in dependencies {
+                self.add_edge(dependent.clone(), resolve(dependency));
+            }
+        }
+    }
+
     /// Remove every node not in `keep`, together with all edges to and from it.
     pub fn restrict(&mut self, keep: &BTreeSet<String>) {
         self.0.retain(|node, _| keep.contains(node));
@@ -56,6 +68,22 @@ mod tests {
     fn self_edges_are_ignored() {
         let g = graph(&[("a", "a")]).into_inner();
         assert_eq!(g, BTreeMap::from([("a".into(), set(&[]))]));
+    }
+
+    #[test]
+    fn merge_combines_edges_without_self_edges() {
+        // `a-bin` is a duplicate of `a`, and depends on it like a second output would.
+        let mut g = graph(&[("x", "a-bin"), ("a-bin", "a"), ("a-bin", "c"), ("a", "d")]);
+        g.merge(&BTreeMap::from([("a-bin".into(), "a".into())]));
+        assert_eq!(
+            g.into_inner(),
+            BTreeMap::from([
+                ("a".into(), set(&["c", "d"])),
+                ("c".into(), set(&[])),
+                ("d".into(), set(&[])),
+                ("x".into(), set(&["a"])),
+            ])
+        );
     }
 
     #[test]
