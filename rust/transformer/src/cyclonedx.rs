@@ -327,7 +327,12 @@ impl CycloneDXComponent {
             Some(bom_ref(&derivation.path)),
         );
         component.scope = Some(Scope::Required);
-        component.purl = Purl::new("nix", &name, &version).ok();
+        component.purl = derivation
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.identifiers.as_ref()?.purl.as_deref())
+            .and_then(|purl| Purl::from_str(purl).ok())
+            .or_else(|| Purl::new("nix", &name, &version).ok());
         component.hashes = derivation.output_hash.and_then(|s| convert_hash(&s));
 
         let mut external_references = Vec::new();
@@ -556,6 +561,32 @@ fn convert_patches(patches: &[String]) -> Patches {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn purl_from_meta_identifiers() -> Result<()> {
+        let derivation: Derivation = serde_json::from_value(serde_json::json!({
+            "path": "/nix/store/a-jq-1.8.1",
+            "pname": "jq",
+            "version": "1.8.1",
+            "patches": [],
+            "meta": {"identifiers": {"purl": "pkg:github/jqlang/jq@jq-1.8.1"}},
+        }))?;
+        let component: Component = CycloneDXComponent::from_derivation(derivation).into();
+        assert_eq!(
+            component.purl.map(|purl| purl.to_string()).as_deref(),
+            Some("pkg:github/jqlang/jq@jq-1.8.1")
+        );
+
+        let component: Component = CycloneDXComponent::from_derivation(
+            Derivation::from_store_path("/nix/store/b-hello-2.12"),
+        )
+        .into();
+        assert_eq!(
+            component.purl.map(|purl| purl.to_string()).as_deref(),
+            Some("pkg:nix/hello@2.12")
+        );
+        Ok(())
+    }
 
     #[test]
     fn serial_number_from_seed() {

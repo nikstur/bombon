@@ -59,6 +59,7 @@ pub struct Meta {
 #[derive(Deserialize, Clone, Debug, Default)]
 pub struct Identifiers {
     pub cpe: Option<String>,
+    pub purl: Option<String>,
     #[serde(rename = "possibleCPEs")]
     pub possible_cpes: Option<Vec<Cpe>>,
 }
