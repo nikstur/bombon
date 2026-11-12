@@ -40,6 +40,11 @@
   component, preferring `out`, and the dependencies on the other outputs point
   to it. Different derivations are kept apart. Components from vendored SBOMs
   are still deduplicated by their PURL.
+- Fixed build-time dependencies being deduplicated by their name with
+  `includeBuildtimeDependencies`. All outputs of a derivation and the stages
+  of the bootstrap share a name, so only one arbitrary store path per name was
+  kept (e.g. only the `dev` output of curl) and the dependencies on the others
+  were lost. They are now deduplicated like the runtime dependencies.
 
 ## 0.4.0
 

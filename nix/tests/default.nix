@@ -199,9 +199,9 @@ let
 
   # Check the SBOM of `drv` with a jq expression that must evaluate to true.
   buildBomAndCheck =
-    name: drv: check:
+    name: drv: options: check:
     pkgs.runCommand "${name}-bom-check" { nativeBuildInputs = [ pkgs.jq ]; } ''
-      jq --exit-status ${pkgs.lib.escapeShellArg check} "${buildBom drv { }}"
+      jq --exit-status ${pkgs.lib.escapeShellArg check} "${buildBom drv options}"
       touch $out
     '';
 
@@ -214,6 +214,7 @@ let
           mkdir $out
           ln -s ${pkgs.openssl.bin} $out/bin
         '')
+        { }
         ''
           .metadata.component."bom-ref" as $root
           | [.components[] | select(.name == "openssl")] as $openssl
@@ -235,8 +236,47 @@ let
             ln -s ${pkgs.pkgsStatic.openssl.out} $out/static
           ''
         )
+        { }
         ''
           [.components[] | select(.name == "openssl")] | length == 2
+        '';
+
+    # Only build inputs: the outputs of `multi` are merged into `out`, and the
+    # two derivations named `twin-1.0` stay apart.
+    buildtime-outputs-and-namesakes =
+      let
+        multi = pkgs.stdenvNoCC.mkDerivation {
+          pname = "multi";
+          version = "1.0";
+          outputs = [
+            "out"
+            "dev"
+          ];
+          buildCommand = ''
+            echo out > $out
+            echo dev > $dev
+          '';
+        };
+        twin =
+          content:
+          pkgs.stdenvNoCC.mkDerivation {
+            pname = "twin";
+            version = "1.0";
+            buildCommand = "echo ${content} > $out";
+          };
+      in
+      buildBomAndCheck "buildtime-outputs-and-namesakes"
+        (pkgs.runCommand "buildtime-outputs-and-namesakes" {
+          inherit multi;
+          twinA = twin "a";
+          twinB = twin "b";
+        } "touch $out")
+        buildtimeOptions
+        ''
+          [.components[] | select(.name == "multi")] as $multi
+          | ($multi | length) == 1
+            and ($multi[0]."bom-ref" | endswith("-dev") | not)
+            and ([.components[] | select(.name == "twin")] | length) == 2
         '';
   };
 in
