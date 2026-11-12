@@ -10,6 +10,32 @@ let
   pnpmPassthru = pkg: passthruVendoredSbom.pnpm pkg { inherit pkgs; };
   goPassthru = pkg: passthruVendoredSbom.go pkg { inherit pkgs; };
 
+  # hello is only referenced in a string, so evaluating the build closure
+  # doesn't find it.
+  stringReference = pkgs.writeText "string-reference" "${pkgs.hello}/bin/hello";
+
+  stringReferenceWithPassthru = stringReference.overrideAttrs {
+    passthru.bombonMetadataFrom = [ pkgs.hello ];
+  };
+
+  # A different variant of hello, so none of its outputs is in the closure.
+  helloVariant = pkgs.hello.overrideAttrs { doCheck = false; };
+
+  stringReferenceBom = buildBomAndValidate stringReference { };
+
+  hasHelloMetadata = ''any(.components[]; .name == "hello" and (.licenses | length > 0) and any(.externalReferences[]?; .type == "website"))'';
+
+  sameComponentCount =
+    sbom:
+    ''[ "$(jq '.components | length' ${sbom})" = "$(jq '.components | length' ${stringReferenceBom})" ]'';
+
+  jqCheck =
+    name: script:
+    pkgs.runCommand name { nativeBuildInputs = [ pkgs.jq ]; } ''
+      ${script}
+      touch $out
+    '';
+
   buildtimeOptions = {
     includeBuildtimeDependencies = true;
   };
@@ -198,3 +224,33 @@ let
     drvs: f: builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.name (f d.drv d.options)) drvs);
 in
 genAttrsFromDrvs testDerivations buildBomAndValidate
+// {
+  string-reference = jqCheck "string-reference" ''
+    jq -e 'any(.components[]; .name == "hello")' ${stringReferenceBom}
+    jq -e '${hasHelloMetadata} | not' ${stringReferenceBom}
+  '';
+  string-reference-metadata-from =
+    let
+      sbom = buildBomAndValidate stringReference { metadataFrom = [ pkgs.hello ]; };
+    in
+    jqCheck "string-reference-metadata-from" ''
+      jq -e '${hasHelloMetadata}' ${sbom}
+      ${sameComponentCount sbom}
+    '';
+  string-reference-metadata-from-unmatched =
+    let
+      sbom = buildBomAndValidate stringReference { metadataFrom = [ helloVariant ]; };
+    in
+    jqCheck "string-reference-metadata-from-unmatched" ''
+      jq -e 'all(.components[]; .["bom-ref"] != "${baseNameOf helloVariant}")' ${sbom}
+      ${sameComponentCount sbom}
+    '';
+  string-reference-passthru-metadata-from =
+    let
+      sbom = buildBomAndValidate stringReferenceWithPassthru { };
+    in
+    jqCheck "string-reference-passthru-metadata-from" ''
+      jq -e '${hasHelloMetadata}' ${sbom}
+      ${sameComponentCount sbom}
+    '';
+}

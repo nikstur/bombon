@@ -48,7 +48,9 @@ pub fn transform(
         .0
         .clone()
         .into_values()
-        .filter(|derivation| !runtime_input.paths.contains(&derivation.path))
+        .filter(|derivation| {
+            !derivation.metadata_only && !runtime_input.paths.contains(&derivation.path)
+        })
         .unique_by(|d| d.name.clone().unwrap_or(d.path.clone()));
 
     let all_derivations: Box<dyn Iterator<Item = Derivation>> = if include_buildtime_dependencies {
@@ -80,7 +82,11 @@ pub fn transform(
     // Augment the components with those retrieved from the `sbom` passthru attribute of the
     // derivations, preserving the (language-level) dependency edges those SBOMs declare.
     let mut vendored_dependencies = VendoredDependencies::new();
-    for derivation in buildtime_input.0.values() {
+    // A `metadataFrom` record's vendored SBOM still describes a store path in the closure.
+    let vendoring_derivations = buildtime_input.0.values().filter(|derivation| {
+        !derivation.metadata_only || runtime_input.paths.contains(&derivation.path)
+    });
+    for derivation in vendoring_derivations {
         if let Some(sbom_path) = &derivation.vendored_sbom {
             vendored_dependencies
                 .extend(components.extend_from_directory(sbom_path, &derivation.path)?);
@@ -88,6 +94,16 @@ pub fn transform(
     }
 
     components.deduplicate();
+
+    let unmatched_metadata_from = buildtime_input.unmatched_metadata_from(&runtime_input.paths);
+    if !unmatched_metadata_from.is_empty() {
+        eprintln!(
+            "warning: {} `metadataFrom` entries match no store path in the closure, \
+             e.g. because they are a different variant of a package: {}",
+            unmatched_metadata_from.len(),
+            unmatched_metadata_from.join(", ")
+        );
+    }
 
     let dependencies = CycloneDXDependencies::assemble(
         &components,
