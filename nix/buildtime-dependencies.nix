@@ -110,7 +110,7 @@ let
 
 in
 
-drv: extraPaths:
+drv: extraPaths: metadataFrom:
 
 let
 
@@ -118,7 +118,28 @@ let
 
   allBuildtimeDerivations = lib.flatten (map buildtimeDerivations allDrvs);
 
-  allFields = map (item: fields item.drv) allBuildtimeDerivations;
+  # The packages in metadataFrom only describe store paths that are already in
+  # the closure but unreachable by evaluation, e.g. because they are only
+  # referenced in a string. They must add no store paths and no edges.
+  metadataFromFields =
+    entry:
+    let
+      entryOutPaths = map (output: output.outPath) (drvOutputs entry);
+    in
+    map (
+      item:
+      fields item.drv
+      // {
+        metadataOnly = true;
+      }
+      // lib.optionalAttrs (lib.elem item.key entryOutPaths) {
+        metadataFromEntry = entry.outPath;
+      }
+    ) (buildtimeDerivations entry);
+
+  allFields =
+    map (item: fields item.drv) allBuildtimeDerivations
+    ++ lib.concatMap metadataFromFields metadataFrom;
 
   # The transformer reads only the patches and vendored SBOMs. The other store
   # paths are just names to it, and with their context building the SBOM

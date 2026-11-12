@@ -118,6 +118,17 @@ An SBOM built from this new derivation will now include the vendored dependencie
   [`unsafeDiscardReferences`](https://nixos.org/manual/nix/stable/language/advanced-attributes#adv-attr-unsafeDiscardReferences)
   but you still want their contents to appear in the SBOM. The `extraPaths`
   will appear as components of the main derivation.
+  Don't use it to supply metadata: it adds its packages and their closures
+  as components even if they are not in the closure. Use `metadataFrom`
+  instead.
+- `metadataFrom`: a list of packages that describe store paths in the closure
+  which evaluating the build closure can't reach, e.g. because a derivation
+  references them only in a string (`"${pkgs.hello}/bin/hello"`). Such store
+  paths otherwise appear with only the name and version from their store path.
+  The entries add no store paths and no dependency edges: they only describe
+  store paths already in the closure, including the vendored SBOM such a path
+  carries. Entries that match no store path in the closure are reported as a
+  warning.
 - `includeBuildtimeDependencies`: boolean flag to include buildtime dependencies in output.
 - `excludes`: a list of regex patterns of store paths to exclude from the final
   SBOM.
@@ -127,6 +138,7 @@ Example:
 ```nix
 bombon.lib.${system}.buildBom pkgs.hello {
   extraPaths = [ pkgs.git ];
+  metadataFrom = [ pkgs.curl ];
   includeBuildtimeDependencies = true;
   excludes = [ "service" ];
 }

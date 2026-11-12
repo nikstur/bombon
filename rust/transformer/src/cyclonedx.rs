@@ -263,7 +263,7 @@ impl CycloneDXDependencies {
             }
         }
         if include_buildtime_dependencies {
-            for derivation in buildtime_input.0.values() {
+            for derivation in buildtime_input.0.values().filter(|d| !d.metadata_only) {
                 let dependent = bom_ref(&derivation.path);
                 if !present.contains(&dependent) {
                     continue;

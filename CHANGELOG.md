@@ -19,6 +19,11 @@
 - Added support for compound licenses from Nixpkgs. Compound licenses are now
   included as SPDX expressions in the SBOM.
 - Added support for CycloneDX v1.7.
+- Added the `metadataFrom` option to `buildBom` to describe store paths that
+  are only referenced in strings, so they get their license, homepage and
+  other metadata from evaluation. It adds no store paths and no dependency
+  edges: it only describes store paths already in the closure, including the
+  vendored SBOM such a path carries.
 
 ### Fixed
 

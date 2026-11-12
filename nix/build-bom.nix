@@ -9,6 +9,7 @@
 drv:
 {
   extraPaths ? [ ],
+  metadataFrom ? [ ],
   includeBuildtimeDependencies ? false,
   excludes ? [ ],
 }:
@@ -34,7 +35,7 @@ runCommand "${drv.name}.cdx.json"
     bombon-transformer ${drv} \
       ${toString args} \
       --serial-number-seed "$out" \
-      ${buildtimeDependencies drv extraPaths} \
+      ${buildtimeDependencies drv extraPaths metadataFrom} \
       ${runtimeDependencies drv extraPaths} \
       "$out"
   ''

@@ -15,6 +15,11 @@ pub struct Derivation {
     pub patches: Vec<String>,
     #[serde(default)]
     pub build_references: Vec<String>,
+    /// Only describes a store path already in the closure (`metadataFrom`).
+    #[serde(default)]
+    pub metadata_only: bool,
+    /// The `metadataFrom` entry this is an output of.
+    pub metadata_from_entry: Option<String>,
 }
 
 impl Derivation {
