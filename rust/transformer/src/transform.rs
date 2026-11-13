@@ -51,15 +51,15 @@ pub fn transform(
         .filter(|derivation| !runtime_input.paths.contains(&derivation.path))
         .unique_by(|d| d.name.clone().unwrap_or(d.path.clone()));
 
-    let all_derivations: Box<dyn Iterator<Item = Derivation>> = if include_buildtime_dependencies {
-        Box::new(runtime_derivations.chain(buildtime_derivations))
-    } else {
-        Box::new(runtime_derivations)
-    };
+    let mut all_derivations = runtime_derivations.collect::<Vec<_>>();
+    if include_buildtime_dependencies {
+        all_derivations.extend(buildtime_derivations);
+    }
 
     let set = RegexSet::new(exclude).context("Failed to build regex set from exclude patterns")?;
 
-    let all_derivations = all_derivations
+    let filtered_derivations = all_derivations
+        .into_iter()
         // Filter out all doc and man outputs.
         .filter(|derivation| {
             !matches!(
@@ -73,18 +73,25 @@ pub fn transform(
         })
         // Filter out derivations that match one of the exclude patterns.
         .filter(|derivation| !set.is_match(&derivation.path))
-        .filter(|derivation| derivation.version.is_some());
+        .filter(|derivation| derivation.version.is_some())
+        .collect::<Vec<_>>();
 
-    let mut components = CycloneDXComponents::from_derivations(all_derivations);
+    // Find the SBOMS to use for the vendored dependencies.
+    let mut sboms_to_include = Vec::new();
+    for derivation in &filtered_derivations {
+        if let Some(sbom_path) = derivation.vendored_sbom.as_ref() {
+            sboms_to_include.push((sbom_path.clone(), derivation.path.clone()));
+        }
+    }
+
+    let mut components = CycloneDXComponents::from_derivations(filtered_derivations);
 
     // Augment the components with those retrieved from the `sbom` passthru attribute of the
     // derivations, preserving the (language-level) dependency edges those SBOMs declare.
     let mut vendored_dependencies = VendoredDependencies::new();
-    for derivation in buildtime_input.0.values() {
-        if let Some(sbom_path) = &derivation.vendored_sbom {
-            vendored_dependencies
-                .extend(components.extend_from_directory(sbom_path, &derivation.path)?);
-        }
+    for (sbom_path, derivation_path) in sboms_to_include {
+        vendored_dependencies
+            .extend(components.extend_from_directory(sbom_path, &derivation_path)?);
     }
 
     components.deduplicate();
