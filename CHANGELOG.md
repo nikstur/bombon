@@ -19,6 +19,9 @@
 - Added support for compound licenses from Nixpkgs. Compound licenses are now
   included as SPDX expressions in the SBOM.
 - Added support for CycloneDX v1.7.
+- Added support for the purl from `meta.identifiers.purl`, e.g.
+  `pkg:github/jqlang/jq@jq-1.8.1`. It is used instead of the `pkg:nix` purl
+  derived from the name and version.
 
 ### Fixed
 
