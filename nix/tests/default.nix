@@ -196,5 +196,181 @@ let
 
   genAttrsFromDrvs =
     drvs: f: builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.name (f d.drv d.options)) drvs);
+
+  # Check the SBOM of `drv` with a jq expression that must evaluate to true.
+  buildBomAndCheck =
+    name: drv: options: check:
+    pkgs.runCommand "${name}-bom-check" { nativeBuildInputs = [ pkgs.jq ]; } ''
+      jq --exit-status ${pkgs.lib.escapeShellArg check} "${buildBom drv options}"
+      touch $out
+    '';
+
+  checks = {
+    # Only the `bin` output is referenced directly, but it is merged into
+    # `out`, so the edge to it must be redirected.
+    openssl-outputs =
+      buildBomAndCheck "openssl-outputs"
+        (pkgs.runCommand "openssl-outputs" { inherit (pkgs) openssl; } ''
+          mkdir $out
+          ln -s ${pkgs.openssl.bin} $out/bin
+        '')
+        { }
+        ''
+          .metadata.component."bom-ref" as $root
+          | [.components[] | select(.name == "openssl")] as $openssl
+          | ($openssl | length) == 1
+            and ($openssl[0]."bom-ref" | endswith("-bin") | not)
+            and (.dependencies[] | select(.ref == $root) | .dependsOn | index($openssl[0]."bom-ref"))
+        '';
+
+    # Two derivations with the same name and version are one component, which
+    # depends on what either of them depends on.
+    namesakes =
+      let
+        twin =
+          dependency:
+          pkgs.stdenvNoCC.mkDerivation {
+            pname = "twin";
+            version = "1.0";
+            buildCommand = "ln -s ${dependency} $out";
+          };
+      in
+      buildBomAndCheck "namesakes"
+        (pkgs.runCommand "namesakes" { } ''
+          mkdir $out
+          ln -s ${twin pkgs.hello} $out/a
+          ln -s ${twin pkgs.zlib} $out/b
+        '')
+        { }
+        ''
+          [.components[] | select(.name == "twin") | ."bom-ref"] as $twin
+          | [.components[] | select(.name == "hello" or .name == "zlib") | ."bom-ref"] as $dependencies
+          | ($twin | length) == 1
+            and ($dependencies | length) == 2
+            and (.dependencies[] | select(.ref == $twin[0]) | .dependsOn | contains($dependencies))
+        '';
+
+    # Only the `lib` output is shipped, so it is kept over the build-time `out`.
+    runtime-output =
+      let
+        multi = pkgs.stdenvNoCC.mkDerivation {
+          pname = "multi";
+          version = "1.0";
+          outputs = [
+            "out"
+            "lib"
+          ];
+          buildCommand = ''
+            echo out > $out
+            echo lib > $lib
+          '';
+        };
+      in
+      buildBomAndCheck "runtime-output"
+        (pkgs.runCommand "runtime-output" { multiLib = multi.lib; } ''
+          ln -s $multiLib $out
+        '')
+        buildtimeOptions
+        ''
+          [.components[] | select(.name == "multi") | ."bom-ref"] as $multi
+          | ($multi | length) == 1 and ($multi[0] | endswith("-lib"))
+        '';
+
+    # Only build inputs: the outputs of `multi` and the two derivations named
+    # `twin-1.0` each become one component, which keeps all their dependencies.
+    buildtime-outputs-and-namesakes =
+      let
+        leaf =
+          pname:
+          pkgs.stdenvNoCC.mkDerivation {
+            inherit pname;
+            version = "1.0";
+            buildCommand = "touch $out";
+          };
+        multi = pkgs.stdenvNoCC.mkDerivation {
+          pname = "multi";
+          version = "1.0";
+          outputs = [
+            "out"
+            "dev"
+          ];
+          buildCommand = ''
+            echo out > $out
+            echo dev > $dev
+          '';
+        };
+        twin =
+          dependency:
+          pkgs.stdenvNoCC.mkDerivation {
+            pname = "twin";
+            version = "1.0";
+            inherit dependency;
+            buildCommand = "touch $out";
+          };
+      in
+      buildBomAndCheck "buildtime-outputs-and-namesakes"
+        (pkgs.runCommand "buildtime-outputs-and-namesakes" {
+          multiDev = multi.dev;
+          twinA = twin (leaf "leaf-a");
+          twinB = twin (leaf "leaf-b");
+        } "touch $out")
+        buildtimeOptions
+        ''
+          .metadata.component."bom-ref" as $root
+          | (.dependencies[] | select(.ref == $root) | .dependsOn) as $direct
+          | [.components[] | select(.name == "multi") | ."bom-ref"] as $multi
+          | [.components[] | select(.name == "twin") | ."bom-ref"] as $twin
+          | [.components[] | select(.name | startswith("leaf-")) | ."bom-ref"] as $leaves
+          | ($multi | length) == 1
+            and ($multi[0] | endswith("-dev") | not)
+            and ($twin | length) == 1
+            and ($leaves | length) == 2
+            and ($direct | contains($multi + $twin))
+            and (.dependencies[] | select(.ref == $twin[0]) | .dependsOn | contains($leaves))
+        '';
+
+    # An image doesn't reference its contents; they are passed as extraPaths.
+    image =
+      buildBomAndCheck "image"
+        (pkgs.runCommand "image"
+          {
+            __structuredAttrs = true;
+            unsafeDiscardReferences.out = true;
+          }
+          ''
+            mkdir $out
+            echo ${pkgs.hello} > $out/contents
+          ''
+        )
+        { extraPaths = [ pkgs.hello ]; }
+        ''
+          .metadata.component."bom-ref" as $root
+          | [.components[] | select(.name == "hello") | ."bom-ref"] as $hello
+          | ($hello | length) == 1
+            and (.dependencies[] | select(.ref == $root) | .dependsOn | index($hello[0]))
+        '';
+
+    # The script has no version, so it is not a component, but what it runs
+    # must still be connected to the root.
+    versionless-script =
+      buildBomAndCheck "versionless-script"
+        (pkgs.runCommand "versionless-script"
+          {
+            script = pkgs.writeShellScript "run-hello" "exec ${pkgs.hello}/bin/hello";
+          }
+          ''
+            mkdir $out
+            ln -s $script $out/run-hello
+          ''
+        )
+        { }
+        ''
+          .metadata.component."bom-ref" as $root
+          | [.components[] | select(.name == "hello") | ."bom-ref"] as $hello
+          | ($hello | length) == 1
+            and (.components | map(.name) | index("run-hello") | not)
+            and (.dependencies[] | select(.ref == $root) | .dependsOn | index($hello[0]))
+        '';
+  };
 in
-genAttrsFromDrvs testDerivations buildBomAndValidate
+genAttrsFromDrvs testDerivations buildBomAndValidate // checks

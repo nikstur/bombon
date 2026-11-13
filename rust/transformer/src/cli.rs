@@ -17,6 +17,12 @@ pub struct Cli {
     #[arg(short, long)]
     exclude: Vec<String>,
 
+    /// Store path that is part of the target without being referenced by it.
+    ///
+    /// Can be given multiple times. The target depends on each of them.
+    #[arg(long)]
+    extra_path: Vec<String>,
+
     /// Data to derive the serial number of the SBOM from.
     ///
     /// The same seed always yields the same serial number.
@@ -41,6 +47,7 @@ impl Cli {
         transform(
             self.include_buildtime_dependencies,
             &self.exclude,
+            &self.extra_path,
             &self.serial_number_seed,
             &self.target,
             &self.buildtime_input,

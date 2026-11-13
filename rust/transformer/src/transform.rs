@@ -3,7 +3,6 @@ use std::io::Write;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use itertools::Itertools;
 use regex::RegexSet;
 
 use crate::buildtime_input::BuildtimeInput;
@@ -13,9 +12,11 @@ use crate::cyclonedx::{
 use crate::derivation::Derivation;
 use crate::runtime_input::RuntimeInput;
 
+#[allow(clippy::too_many_arguments)]
 pub fn transform(
     include_buildtime_dependencies: bool,
     exclude: &[String],
+    extra_paths: &[String],
     serial_number_seed: &str,
     target_path: &str,
     buildtime_input_path: &Path,
@@ -48,8 +49,7 @@ pub fn transform(
         .0
         .clone()
         .into_values()
-        .filter(|derivation| !runtime_input.paths.contains(&derivation.path))
-        .unique_by(|d| d.name.clone().unwrap_or(d.path.clone()));
+        .filter(|derivation| !runtime_input.paths.contains(&derivation.path));
 
     let all_derivations: Box<dyn Iterator<Item = Derivation>> = if include_buildtime_dependencies {
         Box::new(runtime_derivations.chain(buildtime_derivations))
@@ -87,16 +87,18 @@ pub fn transform(
         }
     }
 
-    components.deduplicate();
+    let aliases = components.deduplicate(&runtime_input.paths);
 
     let dependencies = CycloneDXDependencies::assemble(
         &components,
         &target_derivation,
+        extra_paths,
         &runtime_input,
         &buildtime_input,
         include_buildtime_dependencies,
         vendored_dependencies,
-    );
+        &aliases,
+    )?;
 
     let bom = CycloneDXBom::build(
         target_derivation,
