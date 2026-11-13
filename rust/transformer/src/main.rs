@@ -2,6 +2,7 @@ mod buildtime_input;
 mod cli;
 mod cyclonedx;
 mod derivation;
+mod graph;
 mod hash;
 mod runtime_input;
 mod transform;

@@ -196,5 +196,88 @@ let
 
   genAttrsFromDrvs =
     drvs: f: builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.name (f d.drv d.options)) drvs);
+
+  # Check the SBOM of `drv` with a jq expression that must evaluate to true.
+  buildBomAndCheck =
+    name: drv: options: check:
+    pkgs.runCommand "${name}-bom-check" { nativeBuildInputs = [ pkgs.jq ]; } ''
+      jq --exit-status ${pkgs.lib.escapeShellArg check} "${buildBom drv options}"
+      touch $out
+    '';
+
+  checks = {
+    # Only the `bin` output is referenced directly, but it is merged into
+    # `out`, so the edge to it must be redirected.
+    openssl-outputs =
+      buildBomAndCheck "openssl-outputs"
+        (pkgs.runCommand "openssl-outputs" { inherit (pkgs) openssl; } ''
+          mkdir $out
+          ln -s ${pkgs.openssl.bin} $out/bin
+        '')
+        { }
+        ''
+          .metadata.component."bom-ref" as $root
+          | [.components[] | select(.name == "openssl")] as $openssl
+          | ($openssl | length) == 1
+            and ($openssl[0]."bom-ref" | endswith("-bin") | not)
+            and (.dependencies[] | select(.ref == $root) | .dependsOn | index($openssl[0]."bom-ref"))
+        '';
+
+    openssl-static-and-dynamic =
+      buildBomAndCheck "openssl-static-and-dynamic"
+        (pkgs.runCommand "openssl-static-and-dynamic"
+          {
+            inherit (pkgs) openssl;
+            opensslStatic = pkgs.pkgsStatic.openssl;
+          }
+          ''
+            mkdir $out
+            ln -s ${pkgs.openssl.out} $out/dynamic
+            ln -s ${pkgs.pkgsStatic.openssl.out} $out/static
+          ''
+        )
+        { }
+        ''
+          [.components[] | select(.name == "openssl")] | length == 2
+        '';
+
+    # Only build inputs: the outputs of `multi` are merged into `out`, and the
+    # two derivations named `twin-1.0` stay apart.
+    buildtime-outputs-and-namesakes =
+      let
+        multi = pkgs.stdenvNoCC.mkDerivation {
+          pname = "multi";
+          version = "1.0";
+          outputs = [
+            "out"
+            "dev"
+          ];
+          buildCommand = ''
+            echo out > $out
+            echo dev > $dev
+          '';
+        };
+        twin =
+          content:
+          pkgs.stdenvNoCC.mkDerivation {
+            pname = "twin";
+            version = "1.0";
+            buildCommand = "echo ${content} > $out";
+          };
+      in
+      buildBomAndCheck "buildtime-outputs-and-namesakes"
+        (pkgs.runCommand "buildtime-outputs-and-namesakes" {
+          inherit multi;
+          twinA = twin "a";
+          twinB = twin "b";
+        } "touch $out")
+        buildtimeOptions
+        ''
+          [.components[] | select(.name == "multi")] as $multi
+          | ($multi | length) == 1
+            and ($multi[0]."bom-ref" | endswith("-dev") | not)
+            and ([.components[] | select(.name == "twin")] | length) == 2
+        '';
+  };
 in
-genAttrsFromDrvs testDerivations buildBomAndValidate
+genAttrsFromDrvs testDerivations buildBomAndValidate // checks

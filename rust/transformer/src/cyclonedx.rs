@@ -28,6 +28,7 @@ use sha2::{Digest, Sha256};
 
 use crate::buildtime_input::BuildtimeInput;
 use crate::derivation::{self, Derivation, Meta, Src};
+use crate::graph::Graph;
 use crate::hash::{self, SriHash};
 use crate::runtime_input::RuntimeInput;
 
@@ -93,17 +94,43 @@ fn derive_serial_number(data: &[u8]) -> UrnUuid {
     UrnUuid::from(uuid)
 }
 
-pub struct CycloneDXComponents(Components);
+/// The components of a BOM, together with the origin of those created from a store path, keyed by
+/// bom-ref.
+pub struct CycloneDXComponents(Components, BTreeMap<String, Origin>);
+
+/// What deduplication needs to know about the store path a component was created from.
+struct Origin {
+    drv_path: Option<String>,
+    output_name: Option<String>,
+    evaluated: bool,
+}
+
+/// Components with the same key are duplicates of each other.
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+enum DuplicateKey {
+    Derivation(String),
+    StorePath(String),
+    Purl(String),
+}
 
 impl CycloneDXComponents {
     pub fn from_derivations(derivations: impl IntoIterator<Item = Derivation>) -> Self {
-        Self(Components(
-            derivations
-                .into_iter()
-                .map(CycloneDXComponent::from_derivation)
-                .map(CycloneDXComponent::into)
-                .collect(),
-        ))
+        let mut origins = BTreeMap::new();
+        let components = derivations
+            .into_iter()
+            .map(|derivation| {
+                origins.insert(
+                    bom_ref(&derivation.path),
+                    Origin {
+                        drv_path: derivation.drv_path.clone(),
+                        output_name: derivation.output_name.clone(),
+                        evaluated: derivation.meta.is_some(),
+                    },
+                );
+                CycloneDXComponent::from_derivation(derivation).into()
+            })
+            .collect();
+        Self(Components(components), origins)
     }
 
     /// Extend the `Components` with components read from multiple BOMs inside a directory.
@@ -177,31 +204,84 @@ impl CycloneDXComponents {
     /// The set of references of the components currently held.
     /// Keeps the dependency graph valid: edges to/from absent components are dropped.
     pub fn bom_refs(&self) -> BTreeSet<String> {
-        self.0
-            .0
-            .iter()
-            .map(|c| c.bom_ref.clone().unwrap_or_else(|| c.name.to_string()))
-            .collect()
+        self.0.0.iter().map(reference).collect()
     }
 
-    // Deduplicate components.
-    //
-    // Remove entries with duplicate PURLs, falling back to bom-refs, falling back to the name of
-    // the component.
-    pub fn deduplicate(&mut self) {
-        self.0.0 = self
-            .0
-            .0
-            .clone()
-            .into_iter()
-            .unique_by(|c: &Component| {
-                c.purl.as_ref().map_or(
-                    c.bom_ref.clone().unwrap_or(c.name.to_string()),
-                    std::string::ToString::to_string,
+    /// Deduplicate components.
+    ///
+    /// The outputs of a derivation are merged into one component, preferring the `out` output and
+    /// then one with evaluated metadata. Different derivations are kept apart, even if they share
+    /// a name and version, and so are store paths whose derivation is unknown. All other components
+    /// are deduplicated by their PURL, falling back to bom-refs, falling back to the name of the
+    /// component.
+    ///
+    /// Returns the references of the removed components, each mapped to the reference of the
+    /// component kept in its place.
+    pub fn deduplicate(&mut self) -> BTreeMap<String, String> {
+        let mut groups: Vec<Vec<Component>> = Vec::new();
+        let mut group_of_key = BTreeMap::new();
+        for component in std::mem::take(&mut self.0.0) {
+            let group = *group_of_key
+                .entry(self.duplicate_key(&component))
+                .or_insert_with(|| {
+                    groups.push(Vec::new());
+                    groups.len() - 1
+                });
+            groups[group].push(component);
+        }
+
+        let mut aliases = BTreeMap::new();
+        let mut kept = Vec::with_capacity(groups.len());
+        for group in groups {
+            let mut group = group.into_iter().sorted_by_key(|c| self.preference(c));
+            let Some(representative) = group.next() else {
+                continue;
+            };
+            for dropped in group {
+                aliases.insert(reference(&dropped), reference(&representative));
+            }
+            kept.push(representative);
+        }
+
+        self.0.0 = kept;
+        aliases
+    }
+
+    fn duplicate_key(&self, component: &Component) -> DuplicateKey {
+        let reference = reference(component);
+        match self.1.get(&reference) {
+            Some(Origin {
+                drv_path: Some(drv_path),
+                ..
+            }) => DuplicateKey::Derivation(drv_path.clone()),
+            Some(_) => DuplicateKey::StorePath(reference),
+            None => DuplicateKey::Purl(
+                component
+                    .purl
+                    .as_ref()
+                    .map_or(reference, std::string::ToString::to_string),
+            ),
+        }
+    }
+
+    /// Ordering among duplicates: the smallest is kept.
+    fn preference(&self, component: &Component) -> (bool, bool) {
+        self.1
+            .get(&reference(component))
+            .map_or((true, true), |origin| {
+                (
+                    origin.output_name.as_deref() != Some("out"),
+                    !origin.evaluated,
                 )
             })
-            .collect();
     }
+}
+
+fn reference(component: &Component) -> String {
+    component
+        .bom_ref
+        .clone()
+        .unwrap_or_else(|| component.name.to_string())
 }
 
 impl From<CycloneDXComponents> for Components {
@@ -234,9 +314,10 @@ impl CycloneDXDependencies {
     ///   - the Nix build-time reference graph (each derivation's direct build inputs)
     ///   - the language-level graphs carried by the vendored SBOMs, keyed by purl
     ///
-    /// Edges are restricted to refs that actually exist in the final BOM, so the graph stays
-    /// valid after filtering and deduplication. Entries are merged by ref so no `dependency_ref`
-    /// appears twice.
+    /// The graph is first built over all store paths and refs. Nodes of components removed by
+    /// [`CycloneDXComponents::deduplicate`] are then merged into the components kept in their
+    /// place (`aliases`), and finally the graph is restricted to the refs that actually exist in
+    /// the final BOM, so it stays valid after filtering and deduplication.
     pub fn assemble(
         components: &CycloneDXComponents,
         target_derivation: &Derivation,
@@ -244,60 +325,51 @@ impl CycloneDXDependencies {
         buildtime_input: &BuildtimeInput,
         include_buildtime_dependencies: bool,
         vendored_dependencies: VendoredDependencies,
+        aliases: &BTreeMap<String, String>,
     ) -> Self {
+        let root = bom_ref(&target_derivation.path);
         let mut present = components.bom_refs();
-        present.insert(bom_ref(&target_derivation.path));
+        present.insert(root.clone());
 
-        let mut graph: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        let mut graph = Graph::default();
         for (path, references) in &runtime_input.references {
-            let dependent = bom_ref(path);
-            if !present.contains(&dependent) {
-                continue;
-            }
-            let entry = graph.entry(dependent).or_default();
+            graph.add_node(bom_ref(path));
             for reference in references {
-                let dependency = bom_ref(reference);
-                if present.contains(&dependency) {
-                    entry.insert(dependency);
-                }
+                graph.add_edge(bom_ref(path), bom_ref(reference));
             }
         }
         if include_buildtime_dependencies {
             for derivation in buildtime_input.0.values() {
-                let dependent = bom_ref(&derivation.path);
-                if !present.contains(&dependent) {
-                    continue;
-                }
-                let entry = graph.entry(dependent.clone()).or_default();
+                graph.add_node(bom_ref(&derivation.path));
                 for reference in &derivation.build_references {
-                    let dependency = bom_ref(reference);
-                    if dependency != dependent && present.contains(&dependency) {
-                        entry.insert(dependency);
-                    }
+                    graph.add_edge(bom_ref(&derivation.path), bom_ref(reference));
                 }
             }
         }
         for dependency in vendored_dependencies.0 {
-            if !present.contains(&dependency.dependency_ref) {
-                continue;
-            }
-            let entry = graph.entry(dependency.dependency_ref).or_default();
+            graph.add_node(dependency.dependency_ref.clone());
             for sub in dependency.dependencies {
-                if present.contains(&sub) {
-                    entry.insert(sub);
-                }
+                graph.add_edge(dependency.dependency_ref.clone(), sub);
             }
         }
+
+        // The root is described by `metadata.component`, so it must keep its own bom-ref even when
+        // its component lost against a duplicate.
+        let mut aliases = aliases.clone();
+        aliases.remove(&root);
+        graph.merge(&aliases);
+        graph.restrict(&present);
 
         // Declare every component as a node, including leaves with no dependencies of
         // their own: the CycloneDX spec (as required by BSI TR-03183-2 §5.1) mandates
         // that such components appear as empty elements in the dependency graph.
         for reference in &present {
-            graph.entry(reference.clone()).or_default();
+            graph.add_node(reference.clone());
         }
 
         Self(Dependencies(
             graph
+                .into_inner()
                 .into_iter()
                 .map(|(dependency_ref, dependencies)| Dependency {
                     dependency_ref,
@@ -561,6 +633,164 @@ fn convert_patches(patches: &[String]) -> Patches {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn output(drv_path: &str, path: &str, output_name: &str) -> Derivation {
+        Derivation {
+            path: path.to_string(),
+            drv_path: Some(drv_path.to_string()),
+            pname: Some("openssl".to_string()),
+            version: Some("3.6.4".to_string()),
+            output_name: Some(output_name.to_string()),
+            ..Derivation::default()
+        }
+    }
+
+    fn vendored(bom_ref: &str) -> Component {
+        let mut component = Component::new(
+            Classification::Library,
+            "serde",
+            "1.0.219",
+            Some(bom_ref.to_string()),
+        );
+        component.purl = Purl::new("cargo", "serde", "1.0.219").ok();
+        component
+    }
+
+    #[test]
+    fn deduplicate_merges_outputs_of_a_derivation() {
+        let drv = "/nix/store/x9fcdk0wv2glz5n5ylx6wsjiq3b8zsvb-openssl-3.6.4.drv";
+        let mut components = CycloneDXComponents::from_derivations([
+            output(
+                drv,
+                "/nix/store/44gxi8liiqmd6fbnr2b7bbxl0dkfb52m-openssl-3.6.4-bin",
+                "bin",
+            ),
+            output(
+                drv,
+                "/nix/store/3xcc0ljbmnp1nlk0pnjiqrbqzm7m3ag0-openssl-3.6.4",
+                "out",
+            ),
+            output(
+                drv,
+                "/nix/store/0ah2dbbfsc7qmmrhqifaxgvc5zz7bvjp-openssl-3.6.4-dev",
+                "dev",
+            ),
+        ]);
+
+        let aliases = components.deduplicate();
+
+        assert_eq!(
+            components.bom_refs(),
+            BTreeSet::from(["3xcc0ljbmnp1nlk0pnjiqrbqzm7m3ag0-openssl-3.6.4".into()])
+        );
+        assert_eq!(
+            aliases,
+            BTreeMap::from([
+                (
+                    "44gxi8liiqmd6fbnr2b7bbxl0dkfb52m-openssl-3.6.4-bin".into(),
+                    "3xcc0ljbmnp1nlk0pnjiqrbqzm7m3ag0-openssl-3.6.4".into()
+                ),
+                (
+                    "0ah2dbbfsc7qmmrhqifaxgvc5zz7bvjp-openssl-3.6.4-dev".into(),
+                    "3xcc0ljbmnp1nlk0pnjiqrbqzm7m3ag0-openssl-3.6.4".into()
+                ),
+            ])
+        );
+    }
+
+    #[test]
+    fn deduplicate_prefers_evaluated_metadata_without_out() {
+        let drv = "/nix/store/x9fcdk0wv2glz5n5ylx6wsjiq3b8zsvb-openssl-3.6.4.drv";
+        let bin = output(
+            drv,
+            "/nix/store/44gxi8liiqmd6fbnr2b7bbxl0dkfb52m-openssl-3.6.4-bin",
+            "bin",
+        );
+        let dev = Derivation {
+            meta: Some(Meta {
+                license: None,
+                homepage: None,
+                description: None,
+                identifiers: None,
+            }),
+            ..output(
+                drv,
+                "/nix/store/0ah2dbbfsc7qmmrhqifaxgvc5zz7bvjp-openssl-3.6.4-dev",
+                "dev",
+            )
+        };
+        let mut components = CycloneDXComponents::from_derivations([bin, dev]);
+
+        components.deduplicate();
+
+        assert_eq!(
+            components.bom_refs(),
+            BTreeSet::from(["0ah2dbbfsc7qmmrhqifaxgvc5zz7bvjp-openssl-3.6.4-dev".into()])
+        );
+    }
+
+    #[test]
+    fn deduplicate_keeps_derivations_with_the_same_name_and_version_apart() {
+        let mut components = CycloneDXComponents::from_derivations([
+            output(
+                "/nix/store/x9fcdk0wv2glz5n5ylx6wsjiq3b8zsvb-openssl-3.6.4.drv",
+                "/nix/store/3xcc0ljbmnp1nlk0pnjiqrbqzm7m3ag0-openssl-3.6.4",
+                "out",
+            ),
+            output(
+                "/nix/store/4kq2wh3gyjhkqzn8pkxw1dd8q5c1v7sv-openssl-static-x86_64-unknown-linux-musl-3.6.4.drv",
+                "/nix/store/ma4f8m4xrrd3hgs1pf3hcbrq4w0ssv1b-openssl-static-x86_64-unknown-linux-musl-3.6.4",
+                "out",
+            ),
+        ]);
+
+        let aliases = components.deduplicate();
+
+        assert_eq!(components.bom_refs().len(), 2);
+        assert!(aliases.is_empty());
+    }
+
+    #[test]
+    fn deduplicate_keeps_store_paths_without_derivation_apart() {
+        let mut components = CycloneDXComponents::from_derivations([
+            Derivation::from_store_path(
+                "/nix/store/3xcc0ljbmnp1nlk0pnjiqrbqzm7m3ag0-openssl-3.6.4",
+            ),
+            Derivation::from_store_path(
+                "/nix/store/ma4f8m4xrrd3hgs1pf3hcbrq4w0ssv1b-openssl-3.6.4",
+            ),
+        ]);
+
+        let aliases = components.deduplicate();
+
+        assert_eq!(components.bom_refs().len(), 2);
+        assert!(aliases.is_empty());
+    }
+
+    #[test]
+    fn deduplicate_merges_vendored_components_by_purl() {
+        let mut components = CycloneDXComponents::from_derivations([]);
+        components.0.0.extend([
+            vendored("registry+https://github.com/rust-lang/crates.io-index#serde@1.0.219"),
+            vendored("pkg:cargo/serde@1.0.219"),
+        ]);
+
+        let aliases = components.deduplicate();
+
+        assert_eq!(
+            components.bom_refs(),
+            BTreeSet::from([
+                "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.219".into()
+            ])
+        );
+        assert_eq!(
+            aliases,
+            BTreeMap::from([(
+                "pkg:cargo/serde@1.0.219".into(),
+                "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.219".into()
+            )])
+        );
+    }
 
     #[test]
     fn purl_from_meta_identifiers() -> Result<()> {

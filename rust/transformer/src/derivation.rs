@@ -4,6 +4,7 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub struct Derivation {
     pub path: String,
+    pub drv_path: Option<String>,
     pub name: Option<String>,
     pub pname: Option<String>,
     pub version: Option<String>,
