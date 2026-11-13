@@ -65,6 +65,7 @@ let
       # A derivation whose `meta.license` is a hand-rolled attrset or a plain string
       # does not carry `licenseType`, so `lib.licenses.toSPDX` throws
       # `attribute 'licenseType' missing` and aborts the entire SBOM. Guard the call.
+      # A hand-rolled license keeps its `spdxId`, e.g. a `LicenseRef-` of its own.
       toSPDX =
         license:
         if license ? licenseType then
@@ -72,7 +73,7 @@ let
         else if lib.isString license then
           license
         else
-          "LicenseRef-unknown";
+          license.spdxId or "LicenseRef-unknown";
 
       meta = lib.recursiveUpdate drv.meta (
         lib.optionalAttrs (drv.meta ? license) {
