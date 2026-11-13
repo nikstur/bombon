@@ -3,9 +3,14 @@
   writeText,
   runCommand,
   jq,
+  fetchurl,
 }:
 
 let
+
+  # A `mirror://` URL is no URL a reader of the SBOM can download, so take its
+  # first mirror instead.
+  resolveUrl = url: lib.head ((fetchurl.resolveUrl or lib.singleton) url);
 
   # Find the outputs of a derivation.
   #
@@ -95,11 +100,15 @@ let
     }
     // lib.optionalAttrs (drv ? src && drv.src ? urls) {
       src = {
-        inherit (drv.src) urls;
+        urls = map resolveUrl drv.src.urls;
       }
       // lib.optionalAttrs (drv.src ? outputHash) {
         hash = drv.src.outputHash;
       };
+    }
+    # Several sources share no hash.
+    // lib.optionalAttrs (!(drv ? src) && lib.isList (drv.srcs or null)) {
+      src.urls = map resolveUrl (lib.concatMap (src: src.urls or [ ]) drv.srcs);
     }
     // lib.optionalAttrs (drv ? bombonVendoredSbom) {
       vendoredSbom = drv.bombonVendoredSbom.outPath;
