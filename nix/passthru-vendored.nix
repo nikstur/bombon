@@ -283,4 +283,61 @@
         };
       }
     );
+
+  # Add a passthru derivation that generates a CycloneDX SBOM to a derivation
+  # `package` built with `buildComposerProject2`.
+  composer =
+    package:
+    {
+      pkgs,
+      php ? pkgs.php,
+    }:
+    package.overrideAttrs (
+      finalAttrs: previousAttrs: {
+        passthru = (previousAttrs.passthru or { }) // {
+          bombonVendoredSbom = finalAttrs.finalPackage.overrideAttrs (previousAttrs: {
+            pname = previousAttrs.pname + "-bombon-vendored-sbom";
+            # Keeps the renamed `pname` from fetching all dependencies again.
+            inherit (finalAttrs.finalPackage) composerVendor;
+            nativeBuildInputs = (previousAttrs.nativeBuildInputs or [ ]) ++ [
+              pkgs.buildPackages.jq
+            ];
+            outputs = [ "out" ];
+            phases = [
+              "unpackPhase"
+              "patchPhase"
+              "configurePhase"
+              "buildPhase"
+              "installPhase"
+            ];
+
+            buildPhase = ''
+              ${php.packages.cyclonedx-php-composer}/bin/composer CycloneDX:make-sbom \
+                --no-interaction \
+                --no-scripts \
+                --omit=dev \
+                --spec-version=1.5 \
+                --output-format=JSON \
+                --output-reproducible \
+                --validate \
+                --output-file=plugin-sbom.cdx.json
+
+              # Composer's license lists are alternatives, not all applying.
+              jq '(.components[] | .licenses | select(length > 1))
+                |= [{expression: map(.license.id // .license.name) | join(" OR ")}]' \
+                plugin-sbom.cdx.json > vendored-sbom.cdx.json
+            '';
+
+            installPhase = ''
+              mkdir -p $out
+              install -m444 vendored-sbom.cdx.json $out/${previousAttrs.pname}.cdx.json
+            '';
+
+            separateDebugInfo = false;
+
+            passthru = removeAttrs (previousAttrs.passthru or { }) [ "bombonVendoredSbom" ];
+          });
+        };
+      }
+    );
 }
