@@ -84,7 +84,8 @@ pub fn transform(
         }
     }
 
-    let mut components = CycloneDXComponents::from_derivations(filtered_derivations);
+    let mut components =
+        CycloneDXComponents::from_derivations(filtered_derivations, &runtime_input.paths);
 
     // Augment the components with those retrieved from the `sbom` passthru attribute of the
     // derivations, preserving the (language-level) dependency edges those SBOMs declare.

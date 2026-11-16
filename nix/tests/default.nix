@@ -206,8 +206,58 @@ let
 
   genAttrsFromDrvs =
     drvs: f: builtins.listToAttrs (map (d: pkgs.lib.nameValuePair d.name (f d.drv d.options)) drvs);
+
+  # Check the SBOM of `drv` with a jq expression that must evaluate to true.
+  buildBomAndCheck =
+    name: drv: options: check:
+    pkgs.runCommand "${name}-bom-check" { nativeBuildInputs = [ pkgs.jq ]; } ''
+      jq --exit-status ${pkgs.lib.escapeShellArg check} "${buildBom drv options}"
+      touch $out
+    '';
+
+  checks = {
+    # Only the `bin` output is referenced directly, but it is merged into
+    # `out`, so the edge to it must be redirected.
+    openssl-outputs =
+      buildBomAndCheck "openssl-outputs"
+        (pkgs.runCommand "openssl-outputs" { inherit (pkgs) openssl; } ''
+          mkdir $out
+          ln -s ${pkgs.openssl.bin} $out/bin
+        '')
+        { }
+        ''
+          .metadata.component."bom-ref" as $root
+          | [.components[] | select(.name == "openssl")] as $openssl
+          | ($openssl | length) == 1
+            and ($openssl[0]."bom-ref" | endswith("-bin") | not)
+            and (.dependencies[] | select(.ref == $root) | .dependsOn | index($openssl[0]."bom-ref"))
+        '';
+
+    # The script has no version, so it is not a component, but what it runs
+    # must still be connected to the root.
+    versionless-script =
+      buildBomAndCheck "versionless-script"
+        (pkgs.runCommand "versionless-script"
+          {
+            script = pkgs.writeShellScript "run-hello" "exec ${pkgs.hello}/bin/hello";
+          }
+          ''
+            mkdir $out
+            ln -s $script $out/run-hello
+          ''
+        )
+        { }
+        ''
+          .metadata.component."bom-ref" as $root
+          | [.components[] | select(.name == "hello") | ."bom-ref"] as $hello
+          | ($hello | length) == 1
+            and (.components | map(.name) | index("run-hello") | not)
+            and (.dependencies[] | select(.ref == $root) | .dependsOn | index($hello[0]))
+        '';
+  };
 in
 genAttrsFromDrvs testDerivations buildBomAndValidate
+// checks
 // {
   # The src of hello is fetched from a mirror:// URL.
   mirror-url = pkgs.runCommand "mirror-url" { nativeBuildInputs = [ pkgs.jq ]; } ''

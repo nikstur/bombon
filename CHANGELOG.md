@@ -41,6 +41,15 @@
 - Fixed licenses that are not from `lib.licenses` but declare their own
   `spdxId`, e.g. `LicenseRef-acme-proprietary`. They became
   `LicenseRef-unknown`; their `spdxId` is now kept.
+- Fixed dependencies being lost when components are deduplicated by their
+  PURL. The dependencies of a removed duplicate (e.g. another output of the
+  same derivation) and the dependencies on it now belong to the component kept
+  in its place. Of the duplicates, a store path from the runtime closure is
+  kept, then the `out` output, then one with evaluated metadata.
+- Fixed runtime dependencies being lost in the dependency graph when they go
+  through a store path that is not a component (e.g. one without a version, a
+  `doc` or `man` output, or one matched by `excludes`). A component now depends
+  on every component it refers to directly or only through such store paths.
 
 ## 0.4.0
 
