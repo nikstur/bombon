@@ -38,6 +38,9 @@
   `fetchurl` understands. The SBOM now references the first mirror instead.
 - Fixed missing source URLs of derivations that have several sources in `srcs`
   and no `src`, like `tzdata`. The URLs of all of them are now included.
+- Fixed licenses that are not from `lib.licenses` but declare their own
+  `spdxId`, e.g. `LicenseRef-acme-proprietary`. They became
+  `LicenseRef-unknown`; their `spdxId` is now kept.
 
 ## 0.4.0
 

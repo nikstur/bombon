@@ -10,6 +10,16 @@ let
   pnpmPassthru = pkg: passthruVendoredSbom.pnpm pkg { inherit pkgs; };
   goPassthru = pkg: passthruVendoredSbom.go pkg { inherit pkgs; };
 
+  # A license that is not in `lib.licenses`, like that of a company's own product.
+  handRolledLicense = pkgs.runCommand "hand-rolled-license-1.0" {
+    meta.license = {
+      shortName = "acme-proprietary";
+      fullName = "ACME proprietary";
+      spdxId = "LicenseRef-acme-proprietary";
+      free = true;
+    };
+  } "touch $out";
+
   buildtimeOptions = {
     includeBuildtimeDependencies = true;
   };
@@ -212,4 +222,12 @@ genAttrsFromDrvs testDerivations buildBomAndValidate
     jq -e '[.metadata.component.externalReferences[] | select(.type == "vcs") | .url] | length == ${toString (builtins.length pkgs.tzdata.srcs)} and all(startswith("https://"))' "$sbom"
     touch $out
   '';
+
+  hand-rolled-license =
+    pkgs.runCommand "hand-rolled-license-check" { nativeBuildInputs = [ pkgs.jq ]; }
+      ''
+        sbom="${buildBom handRolledLicense { }}"
+        jq -e '[.metadata.component.licenses[].expression] | unique == ["LicenseRef-acme-proprietary"]' "$sbom"
+        touch $out
+      '';
 }
