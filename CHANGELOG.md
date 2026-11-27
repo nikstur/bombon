@@ -13,6 +13,9 @@
 - Added `passthruVendoredSbom.go` to generate SBOMs for vendored Go
   dependencies of packages built with `buildGoModule`. The SBOM is generated
   with `cyclonedx-gomod`.
+- Added `passthruVendoredSbom.nodeModules` to generate SBOMs for the npm
+  packages in the `node_modules` directories of a package, independent of the
+  package manager (e.g. yarn).
 - Added emitting a CycloneDX dependency graph spanning runtime dependencies,
   vendored language-level SBOMs' graphs, and optionally build-time dependencies
   via the `includeBuildtimeDependencies` flag.

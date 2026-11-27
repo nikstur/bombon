@@ -9,6 +9,7 @@ let
   npmPassthru = pkg: passthruVendoredSbom.npm pkg { inherit pkgs; };
   pnpmPassthru = pkg: passthruVendoredSbom.pnpm pkg { inherit pkgs; };
   goPassthru = pkg: passthruVendoredSbom.go pkg { inherit pkgs; };
+  nodeModulesPassthru = pkg: passthruVendoredSbom.nodeModules pkg { inherit pkgs; };
 
   # A license that is not in `lib.licenses`, like that of a company's own product.
   handRolledLicense = pkgs.runCommand "hand-rolled-license-1.0" {
@@ -152,6 +153,13 @@ let
     {
       name = "lessc";
       drv = pnpmPassthru lessc;
+      options = { };
+    }
+
+    # Installed with yarn
+    {
+      name = "auto-changelog";
+      drv = nodeModulesPassthru auto-changelog;
       options = { };
     }
 
