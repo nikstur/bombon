@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use cyclonedx_bom::external_models::normalized_string::NormalizedString;
-use cyclonedx_bom::external_models::spdx::SpdxExpression;
+use cyclonedx_bom::external_models::spdx::{SpdxExpression, SpdxIdentifier};
 use cyclonedx_bom::external_models::uri::{Purl, Uri};
 use cyclonedx_bom::models::attached_text::AttachedText;
 use cyclonedx_bom::models::bom::{Bom, SpecVersion, UrnUuid};
@@ -22,6 +22,7 @@ use cyclonedx_bom::models::external_reference::{
 use cyclonedx_bom::models::hash::{Hash, HashAlgorithm, HashValue, Hashes};
 use cyclonedx_bom::models::license::{License, LicenseChoice, Licenses};
 use cyclonedx_bom::models::metadata::Metadata;
+use cyclonedx_bom::models::property::{Properties, Property};
 use cyclonedx_bom::models::tool::Tools;
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
@@ -411,9 +412,23 @@ fn convert_licenses(meta: &Meta) -> Option<Licenses> {
 
 fn convert_license(license: derivation::License) -> LicenseChoice {
     match license.spdx_id {
-        Some(spdx_id) => LicenseChoice::License(License::license_id(&spdx_id)),
+        Some(spdx_id) if listed_spdx_id(&spdx_id) => {
+            LicenseChoice::License(License::license_id(&spdx_id))
+        }
+        Some(spdx_id) => {
+            let mut named = License::named_license(&license.full_name);
+            named.properties = Some(Properties(vec![Property::new(
+                "bombon:license:original-spdx-id",
+                &spdx_id,
+            )]));
+            LicenseChoice::License(named)
+        }
         None => LicenseChoice::License(License::named_license(&license.full_name)),
     }
+}
+
+fn listed_spdx_id(id: &str) -> bool {
+    SpdxIdentifier::try_from(id.to_owned()).is_ok()
 }
 
 fn cpes_to_evidence(possible_cpes: &[derivation::Cpe]) -> Option<ComponentEvidence> {
@@ -561,6 +576,47 @@ fn convert_patches(patches: &[String]) -> Patches {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn serialized_licenses(license: &serde_json::Value) -> Result<serde_json::Value> {
+        let derivation: Derivation = serde_json::from_value(serde_json::json!({
+            "path": "/nix/store/fictional-example-1.0",
+            "pname": "fictional-example",
+            "version": "1.0",
+            "patches": [],
+            "meta": {"license": license},
+        }))?;
+        let components = CycloneDXComponents::from_derivations([derivation.clone()]);
+        let bom = CycloneDXBom::build(
+            derivation,
+            components,
+            CycloneDXDependencies(Dependencies(vec![])),
+            "fictional-test-seed",
+        );
+        let output: serde_json::Value = serde_json::from_slice(&bom.serialize()?)?;
+        Ok(output["components"][0]["licenses"].clone())
+    }
+
+    #[test]
+    fn custom_license_ids_are_preserved_as_properties() -> Result<()> {
+        let licenses = serialized_licenses(&serde_json::json!([
+            {"fullName": "Fictional proprietary license", "spdxId": "LicenseRef-fictional"},
+            {"fullName": "MIT License", "spdxId": "MIT"}
+        ]))?;
+        assert_eq!(
+            licenses,
+            serde_json::json!([
+                {"license": {
+                    "name": "Fictional proprietary license",
+                    "properties": [{
+                        "name": "bombon:license:original-spdx-id",
+                        "value": "LicenseRef-fictional"
+                    }]
+                }},
+                {"license": {"id": "MIT"}}
+            ])
+        );
+        Ok(())
+    }
 
     #[test]
     fn purl_from_meta_identifiers() -> Result<()> {
