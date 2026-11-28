@@ -9,6 +9,7 @@ let
   npmPassthru = pkg: passthruVendoredSbom.npm pkg { inherit pkgs; };
   pnpmPassthru = pkg: passthruVendoredSbom.pnpm pkg { inherit pkgs; };
   goPassthru = pkg: passthruVendoredSbom.go pkg { inherit pkgs; };
+  composerPassthru = pkg: passthruVendoredSbom.composer pkg { inherit pkgs; };
 
   # A license that is not in `lib.licenses`, like that of a company's own product.
   handRolledLicense = pkgs.runCommand "hand-rolled-license-1.0" {
@@ -164,6 +165,12 @@ let
       name = "age-buildtime";
       drv = goPassthru age;
       options = buildtimeOptions;
+    }
+
+    {
+      name = "psysh";
+      drv = composerPassthru psysh;
+      options = { };
     }
 
     # Multiple src urls

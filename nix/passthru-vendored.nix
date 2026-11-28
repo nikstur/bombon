@@ -283,4 +283,63 @@
         };
       }
     );
+
+  # Add a passthru derivation that generates a CycloneDX SBOM to a derivation
+  # `package` built with `buildComposerProject2`.
+  composer =
+    package:
+    {
+      pkgs,
+      php ? pkgs.php,
+    }:
+    package.overrideAttrs (
+      finalAttrs: previousAttrs: {
+        passthru = (previousAttrs.passthru or { }) // {
+          bombonVendoredSbom = finalAttrs.finalPackage.overrideAttrs (previousAttrs: {
+            pname = previousAttrs.pname + "-bombon-vendored-sbom";
+            # Keeps the renamed `pname` from fetching all dependencies again.
+            inherit (finalAttrs.finalPackage) composerVendor;
+            nativeBuildInputs = (previousAttrs.nativeBuildInputs or [ ]) ++ [
+              pkgs.buildPackages.jq
+            ];
+            outputs = [ "out" ];
+            phases = [
+              "unpackPhase"
+              "patchPhase"
+              "configurePhase"
+              "buildPhase"
+              "installPhase"
+            ];
+
+            buildPhase = ''
+              ${php.packages.cyclonedx-php-composer}/bin/composer CycloneDX:make-sbom \
+                --no-interaction \
+                --no-scripts \
+                ${pkgs.lib.optionalString (previousAttrs.composerNoDev or true) "--omit=dev"} \
+                --spec-version=1.5 \
+                --output-format=JSON \
+                --output-reproducible \
+                --validate \
+                --output-file=plugin-sbom.cdx.json
+
+              # Composer license arrays are a disjunctive choice. Only SPDX ids
+              # can be joined into a valid SPDX expression.
+              jq '(.components[] | .licenses | select(length > 1 and all(.[]; .license.id != null)))
+                |= [{expression: map(.license.id) | join(" OR ")}]' \
+                plugin-sbom.cdx.json > vendored-sbom.cdx.json
+            '';
+
+            installPhase = ''
+              mkdir -p $out
+              install -m444 vendored-sbom.cdx.json $out/${previousAttrs.pname}.cdx.json
+            '';
+
+            separateDebugInfo = false;
+
+            # The SBOM derivation must not carry a vendored SBOM of its own.
+            passthru = removeAttrs (previousAttrs.passthru or { }) [ "bombonVendoredSbom" ];
+          });
+        };
+      }
+    );
 }
